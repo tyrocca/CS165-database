@@ -6,7 +6,7 @@ This repository contains the distribution code for CS165 Fall 2017.
 We will continually update this repository throughout the semester,
 so it is recommended that you add
 
-> `git://code.seas.harvard.edu/cs165-main/cs165-2017-base.git`
+> `git://code.seas.harvard.edu/cs165-2017-base/cs165-2017-base.git`
 
 as a new remote to your own local git repository. This will help you
 merge in any updates or bug fixes that we might release.
@@ -20,7 +20,7 @@ of the TFs or Stratos if you have any questions at any time.
 First, please add our distribution code repository as a new remote,
 you can do that with:
 
-> `git remote add cs165 git://code.seas.harvard.edu/cs165-main/cs165-2017-base.git`
+> `git remote add cs165 git://code.seas.harvard.edu/cs165-2017-base/cs165-2017-base.git`
 
 This means in the future, you can pull from our repository using:
 

@@ -1,10 +1,10 @@
 README file
 
-This directory contains skeleton code for your Project 0 hash table implementation. 
+This directory contains skeleton code for your Project 0 hash table implementation.
 
 The interface is defined in the hash_table.h file. See the hash_table.c file for expected behavior and parameter descriptions.
 
- You should implement this interface within the hash_table.c file. 
+ You should implement this interface within the hash_table.c file.
 
 main.c is meant for you to run your code as you program to test it. Compile and run the code in main.c by running the following commands in the command line:
 

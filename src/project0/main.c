@@ -15,25 +15,24 @@ int main(void) {
   int value = -1;
 
   put(ht, key, value);
-  dataNode *test = ht->tableNodes[1];
+  put(ht, 1, 3);
+  printf("value %d", ht->tableNodes[1]->next->value);
 
-  /* printf("HERE WE ARE KEY %d, value %d", test->key, test->value); */
+  int num_values = 1;
 
-  /* int num_values = 1; */
+  valType *values = malloc(1 * sizeof(valType));
 
-  /* valType* values = malloc(1 * sizeof(valType)); */
+  int *num_results = NULL;
 
-  /* int* num_results = NULL; */
-
-  /* get(ht, key, values, num_values, num_results); */
+  get(ht, key, values, num_values, num_results);
   /* if ((*num_results) > num_values) { */
   /*   values = realloc(values, (*num_results) * sizeof(valType)); */
   /*   get(ht, 0, values, num_values, num_results); */
   /* } */
 
-  /* for (int i = 0; i < (*num_results); i++) { */
-  /*   printf("value %d is %d \n", i, values[i]); */
-  /* } */
+  for (int i = 0; i < (*num_results); i++) {
+    printf("value %d is %d \n", i, values[i]);
+  }
   /* free(values); */
 
   /* erase(ht, 0); */

@@ -13,21 +13,25 @@ int allocate(hashtable** ht, int size) {
     if (size < 1) {
         return -1;
     }
-    // create the hashtable
-    hashtable newHashTable;
-    newHashTable.size = size;
-    newHashTable.current_size = 0;
-    // create the array of data node pointers
-    newHashTable.tableNodes = malloc(sizeof(dataNode *) * size);
-    if (newHashTable.tableNodes == NULL) {
+    // create the hash table
+    hashtable* newHashTable = malloc(sizeof(hashtable));
+    if (newHashTable == NULL) {
         return -1;
     }
+    newHashTable->size = size;
+    newHashTable->current_size = 0;
+    // create the nodes for the table
+    newHashTable->tableNodes = malloc(sizeof(dataNode *) * size);
+    if (newHashTable->tableNodes == NULL) {
+        return -1;
+    }
+
     // set each node to be null
     for (int i = 0; i < size; i++) {
-        newHashTable.tableNodes[i] = NULL;
+        newHashTable->tableNodes[i] = NULL;
     }
     // update the hash table
-    *ht = &newHashTable;
+    *ht = newHashTable;
 
     return 0;
 }
@@ -41,20 +45,31 @@ int hash_function(hashtable* ht, keyType key) {
 // It returns an error code, 0 for success and -1 otherwise
 // (e.g., if malloc is called and fails).
 int put(hashtable* ht, keyType key, valType value) {
-    // get the node at the hash position
-    int idx = hash_function(ht, key);
-    printf("ASDFASDFASDF  %d \n", idx);
-    dataNode *nodePtr = ht->tableNodes[hash_function(ht, key)];
-    // go down the linked list
-    while (nodePtr != NULL) {
-        printf("INSIDE \n");
-        nodePtr = nodePtr->next;
+    // create the new node
+    dataNode *new_node = malloc(sizeof(dataNode));
+    if (new_node == NULL) {
+        return -1;
     }
-    nodePtr = malloc(sizeof(dataNode));
-    nodePtr->key = key;
-    nodePtr->value = value;
-    nodePtr->next = NULL;
-    printf("HERE \n");
+    new_node->key = key;
+    new_node->value = value;
+
+    // insert into the list
+    int idx = hash_function(ht, key);
+    dataNode *list_ptr = ht ->tableNodes[idx];
+    ht->current_size++;
+    // if we have no collisions - return
+    if (list_ptr == NULL) {
+        new_node->next = list_ptr;
+        ht->tableNodes[idx] = new_node;
+        return 0;
+    }
+    // when there is a collision we have to append - this seems slower
+    // TODO: do we need to append? it would be faster to add to the front
+    while (list_ptr->next != NULL) {
+        list_ptr = list_ptr->next;
+    }
+    new_node->next = list_ptr->next;
+    list_ptr->next = new_node;
     return 0;
 }
 
@@ -67,11 +82,28 @@ int put(hashtable* ht, keyType key, valType value) {
 // to get values that it missed during the first call.
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results) {
-    (void) ht;
-    (void) key;
-    (void) values;
-    (void) num_values;
-    (void) num_results;
+    int idx = hash_function(ht, key);
+    dataNode *list_ptr = ht ->tableNodes[idx];
+    if (list_ptr == NULL || num_values == 0) {
+        return 0;
+    }
+    int* count = realloc(num_results,
+    *count = 0;
+    int ret_vals[num_values];
+
+    while(list_ptr != NULL) {
+        if (list_ptr->key == key) {
+            if (num_values > 0) {
+                ret_vals[*count] = list_ptr->value;
+                num_values--;
+            }
+            *count = *count + 1;
+        }
+        list_ptr = list_ptr->next;
+    }
+    printf("here %d", *count);
+    num_results = count;
+    values = ret_vals;
     return 0;
 }
 

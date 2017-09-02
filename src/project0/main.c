@@ -31,10 +31,10 @@ int main(void) {
     for (int i = 0; i < (*num_results); i++) {
         printf("value %d is %d \n", i, values[i]);
     }
-    /* free(values); */
+    free(values);
 
-    /* erase(ht, 0); */
+    erase(ht, key);
 
-    /* deallocate(ht); */
+    deallocate(ht);
     return 0;
 }

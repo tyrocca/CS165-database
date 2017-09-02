@@ -41,12 +41,13 @@ int hash_function(hashtable* ht, keyType key) {
     return key % 10;
 }
 
+
 // This method inserts a key-value pair into the hash table.
 // It returns an error code, 0 for success and -1 otherwise
 // (e.g., if malloc is called and fails).
 int put(hashtable* ht, keyType key, valType value) {
     // create the new node
-    dataNode *new_node = malloc(sizeof(dataNode));
+    dataNode* new_node = malloc(sizeof(dataNode));
     if (new_node == NULL) {
         return -1;
     }
@@ -55,7 +56,7 @@ int put(hashtable* ht, keyType key, valType value) {
 
     // insert into the list
     int idx = hash_function(ht, key);
-    dataNode *list_ptr = ht ->tableNodes[idx];
+    dataNode* list_ptr = ht ->tableNodes[idx];
     ht->current_size++;
     // if we have no collisions - return
     if (list_ptr == NULL) {
@@ -65,7 +66,8 @@ int put(hashtable* ht, keyType key, valType value) {
     }
     // when there is a collision we have to append - this seems slower
     // TODO: do we need to append? it would be faster to add to the front
-    while (list_ptr->next != NULL) {
+    // my current implementation keeps them in order
+    while (list_ptr->next) {
         list_ptr = list_ptr->next;
     }
     new_node->next = list_ptr->next;
@@ -83,13 +85,13 @@ int put(hashtable* ht, keyType key, valType value) {
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results) {
     // go to the bucket
-    dataNode *list_ptr = ht ->tableNodes[hash_function(ht, key)];
-    if (list_ptr == NULL || num_values == 0) {
+    dataNode* list_ptr = ht ->tableNodes[hash_function(ht, key)];
+    if (!list_ptr|| num_values == 0) {
         return 0;
     }
     // load values
     *num_results = 0;
-    while(list_ptr != NULL) {
+    while(list_ptr) {
         if (list_ptr->key == key) {
             if (num_values > 0) {
                 values[*num_results] = list_ptr->value;
@@ -105,8 +107,27 @@ int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_re
 // This method erases all key-value pairs with a given key from the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int erase(hashtable* ht, keyType key) {
-    (void) ht;
-    (void) key;
+    int idx = hash_function(ht, key);
+    dataNode* list_ptr = ht->tableNodes[idx];
+    dataNode* head_ptr = NULL;
+    if (!list_ptr) {
+        return 0;
+    }
+    while(list_ptr) {
+        if (list_ptr->key != key) {
+            if (!list_ptr) {
+                head_ptr = list_ptr;
+            }
+            list_ptr = list_ptr->next;
+        } else {
+            dataNode* temp = list_ptr->next;
+            free(list_ptr);
+            ht->current_size--;
+            list_ptr = temp;
+        }
+    }
+    // update the head
+    ht->tableNodes[idx] = head_ptr;
     return 0;
 }
 
@@ -116,6 +137,16 @@ int deallocate(hashtable* ht) {
     // This line tells the compiler that we know we haven't used the variable
     // yet so don't issue a warning. You should remove this line once you use
     // the parameter.
-    (void) ht;
+    for (int i = 0; i < ht->size; i++) {
+        if (ht->tableNodes[i]) {
+            dataNode* node_ptr = ht->tableNodes[i];
+            while(node_ptr) {
+                dataNode* temp = node_ptr;
+                node_ptr = temp->next;
+                free(temp);
+            }
+        }
+    }
+    free(ht);
     return 0;
 }

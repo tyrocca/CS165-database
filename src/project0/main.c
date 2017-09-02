@@ -5,6 +5,8 @@
 
 // This is where you can implement your own tests for the hash table
 // implementation.
+// TODO: REMOVE
+
 int main(void) {
     hashtable* ht = NULL;
     int size = 10;
@@ -15,6 +17,8 @@ int main(void) {
 
     put(ht, key, value);
     put(ht, 1, 3);
+    put(ht, 11, 13);
+    put(ht, 33, 20);
 
     int num_values = 1;
 
@@ -32,9 +36,8 @@ int main(void) {
         printf("value %d is %d \n", i, values[i]);
     }
     free(values);
-
+    free(num_results);
     erase(ht, key);
-
     deallocate(ht);
     return 0;
 }

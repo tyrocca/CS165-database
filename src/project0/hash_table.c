@@ -115,7 +115,7 @@ int erase(hashtable* ht, keyType key) {
     }
     while(list_ptr) {
         if (list_ptr->key != key) {
-            if (!list_ptr) {
+            if (!head_ptr) {
                 head_ptr = list_ptr;
             }
             list_ptr = list_ptr->next;
@@ -141,12 +141,13 @@ int deallocate(hashtable* ht) {
         if (ht->tableNodes[i]) {
             dataNode* node_ptr = ht->tableNodes[i];
             while(node_ptr) {
-                dataNode* temp = node_ptr;
-                node_ptr = temp->next;
-                free(temp);
+                dataNode* temp = node_ptr->next;
+                free(node_ptr);
+                node_ptr = temp;
             }
         }
     }
+    free(ht->tableNodes);
     free(ht);
     return 0;
 }

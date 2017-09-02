@@ -7,7 +7,7 @@ typedef int valType;
 typedef struct dataNode {
    keyType key;
    valType value;
-   struct dataNode *next;
+   struct dataNode* next;
 } dataNode;
 
 typedef struct hashtable {
@@ -15,7 +15,7 @@ typedef struct hashtable {
     // (e.g. the array, bookkeeping for number of elements, etc)
     int size;  // tracks number of elements
     int current_size;  // this is the current size of the table
-    dataNode **tableNodes; // pointer to the nodes of the table
+    dataNode** tableNodes; // pointer to the nodes of the table
 } hashtable;
 
 int allocate(hashtable** ht, int size);

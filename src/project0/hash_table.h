@@ -5,9 +5,9 @@ typedef int keyType;
 typedef int valType;
 
 typedef struct dataNode {
-   keyType key;
-   valType value;
-   struct dataNode* next;
+    keyType key;
+    valType value;
+    struct dataNode*next;
 } dataNode;
 
 typedef struct hashtable {

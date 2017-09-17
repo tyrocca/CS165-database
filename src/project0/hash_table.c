@@ -7,9 +7,6 @@
 // The size parameter is the expected number of elements to be inserted.
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the parameter passed to the method is not null, if malloc fails, etc).
 int allocate(hashtable** ht, int size) {
-    // The next line tells the compiler that we know we haven't used the variable
-    // yet so don't issue a warning. You should remove this line once you use
-    // the parameter.
     if (size < 1) {
         return -1;
     }
@@ -36,9 +33,17 @@ int allocate(hashtable** ht, int size) {
     return 0;
 }
 
-int hash_function(hashtable* ht, keyType key) {
-    (void) ht;  // TODO: better hash function
-    return key % 10;
+/* int hash_function(hashtable* ht, keyType key) { */
+/*     (void) ht;  // TODO: better hash function */
+/*     return key % 10; */
+/* } */
+
+unsigned int hash_function(unsigned int x, hashtable* ht) {
+    // http://bit.ly/2f3TUMS
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    return x % ht->size;
 }
 
 
@@ -55,7 +60,7 @@ int put(hashtable* ht, keyType key, valType value) {
     new_node->value = value;
 
     // insert into the list
-    int idx = hash_function(ht, key);
+    unsigned int idx = hash_function((unsigned int) key, ht);
     dataNode* list_ptr = ht ->tableNodes[idx];
     ht->current_size++;
     // if we have no collisions - return
@@ -85,7 +90,7 @@ int put(hashtable* ht, keyType key, valType value) {
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results) {
     // go to the bucket
-    dataNode* list_ptr = ht ->tableNodes[hash_function(ht, key)];
+    dataNode* list_ptr = ht ->tableNodes[hash_function((unsigned int) key, ht)];
     if (!list_ptr|| num_values == 0) {
         return 0;
     }
@@ -107,7 +112,7 @@ int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_re
 // This method erases all key-value pairs with a given key from the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int erase(hashtable* ht, keyType key) {
-    int idx = hash_function(ht, key);
+    unsigned int idx = hash_function((unsigned int) key, ht);
     dataNode* list_ptr = ht->tableNodes[idx];
     dataNode* head_ptr = NULL;
     if (!list_ptr) {

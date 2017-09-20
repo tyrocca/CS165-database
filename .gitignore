@@ -28,4 +28,5 @@ Tags
 # other
 r*hs # vtune output
 .deps # makefile temps
-*.dSYM
+*.dSYM/
+.vagrant/

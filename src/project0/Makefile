@@ -1,6 +1,5 @@
-# CC=gcc -std=c99
+CC=gcc -std=c99
 CFLAGS = -ggdb3 -W -Wall -Wextra -Werror -O3
-CC=gcc-7 -std=c99
 # CFLAGS = -ggdb3 -W -Wall -Wextra -Werror -O0
 
 LDFLAGS =

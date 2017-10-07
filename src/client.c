@@ -61,8 +61,7 @@ int connect_client() {
     return client_socket;
 }
 
-int main(void)
-{
+int main(void) {
     int client_socket = connect_client();
     if (client_socket < 0) {
         exit(1);

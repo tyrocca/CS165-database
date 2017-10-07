@@ -6,7 +6,10 @@
 all: client server
 
 # C-compiler settings
+# TODO: CHANGE BACK
 CC = gcc -std=c99 -g -ggdb3
+# the version on my computer id annoying
+# CC = gcc-7 -std=c99 -g -ggdb3
 
 # Default optimization level
 O ?= 0
@@ -60,6 +63,8 @@ server: server.o parse.o utils.o db_manager.o client_context.o
 clean:
 	rm -f client server *.o *~ *.bak core *.core cs165_unix_socket
 	rm -rf .deps
+	# I added this BC macs add this
+	rm -rf *.dYSM
 
 distclean: clean
 	rm -rf $(DEPSDIR)

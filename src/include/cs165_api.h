@@ -1,5 +1,3 @@
-
-
 /* BREAK APART THIS API (TODO MYSELF) */
 /* PLEASE UPPERCASE ALL THE STUCTS */
 
@@ -52,9 +50,9 @@ struct Comparator;
 //struct ColumnIndex;
 
 typedef struct Column {
-    char name[MAX_SIZE_NAME]; 
+    char name[MAX_SIZE_NAME];
     int* data;
-    // You will implement column indexes later. 
+    // You will implement column indexes later.
     void* index;
     //struct ColumnIndex *index;
     //bool clustered;
@@ -65,13 +63,13 @@ typedef struct Column {
  * table
  * Defines a table structure, which is composed of multiple columns.
  * We do not require you to dynamically manage the size of your tables,
- * although you are free to append to the struct if you would like to (i.e.,
- * include a size_t table_size).
+ * although you are free to append to the struct if you would like to
+ * (i.e., include a size_t table_size).
  * name, the name associated with the table. table names must be unique
  *     within a database, but tables from different databases can have the same
  *     name.
  * - col_count, the number of columns in the table
- * - col,umns this is the pointer to an array of columns contained in the table.
+ * - columns this is the pointer to an array of columns contained in the table.
  * - table_length, the size of the columns in the table.
  **/
 
@@ -88,12 +86,13 @@ typedef struct Table {
  * - name: the name of the associated database.
  * - tables: the pointer to the array of tables contained in the db.
  * - tables_size: the size of the array holding table objects
- * - tables_capacity: the amount of pointers that can be held in the currently allocated memory slot
+ * - tables_capacity: the amount of pointers that can be held in the
+ *   currently allocated memory slot
  **/
 
 typedef struct Db {
-    char name[MAX_SIZE_NAME]; 
-    Table *tables;
+    char name[MAX_SIZE_NAME];
+    Table* tables;
     size_t tables_size;
     size_t tables_capacity;
 } Db;
@@ -125,8 +124,9 @@ typedef enum ComparatorType {
 } ComparatorType;
 
 /*
- * Declares the type of a result column, 
- which includes the number of tuples in the result, the data type of the result, and a pointer to the result data
+ * Declares the type of a result column,
+ * which includes the number of tuples in the result,
+ * the data type of the result, and a pointer to the result data
  */
 typedef struct Result {
     size_t num_tuples;
@@ -176,11 +176,11 @@ typedef struct ClientContext {
 
 /**
  * comparator
- * A comparator defines a comparison operation over a column. 
+ * A comparator defines a comparison operation over a column.
  **/
 typedef struct Comparator {
     long int p_low; // used in equality and ranges.
-    long int p_high; // used in range compares. 
+    long int p_high; // used in range compares.
     GeneralizedColumn* gen_col;
     ComparatorType type1;
     ComparatorType type2;
@@ -220,7 +220,8 @@ typedef union OperatorFields {
  * type: the type of operator to perform (i.e. insert, select, ...)
  * operator fields: the fields of the operator in question
  * client_fd: the file descriptor of the client that this operator will return to
- * context: the context of the operator in question. This context holds the local results of the client in question.
+ * context: the context of the operator in question. This context holds the
+ *          local results of the client in question.
  */
 typedef struct DbOperator {
     OperatorType type;
@@ -229,7 +230,7 @@ typedef struct DbOperator {
     ClientContext* context;
 } DbOperator;
 
-extern Db *current_db;
+extern Db* current_db;
 
 Status db_startup();
 
@@ -242,7 +243,7 @@ Status db_startup();
  **/
 Status sync_db(Db* db);
 
-Status add_db(const char* db_name, bool new);
+Status add_db(const char* db_name, bool is_new);
 
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
 

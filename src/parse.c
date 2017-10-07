@@ -1,4 +1,4 @@
-/* 
+/*
  * This file contains methods necessary to parse input from the client.
  * Mostly, functions in parse.c will take in string input and map these
  * strings into database operators. This will require checking that the
@@ -17,13 +17,15 @@
 #include "utils.h"
 #include "client_context.h"
 
+
 /**
  * Takes a pointer to a string.
- * This method returns the original string truncated to where its first comma lies.
- * In addition, the original string now points to the first character after that comma.
+ * This method returns the original string truncated
+ * to where its first comma lies.
+ * In addition, the original string now points to the
+ * first character after that comma.
  * This method destroys its input.
  **/
-
 char* next_token(char** tokenizer, message_status* status) {
     char* token = strsep(tokenizer, ",");
     if (token == NULL) {
@@ -32,11 +34,11 @@ char* next_token(char** tokenizer, message_status* status) {
     return token;
 }
 
+
 /**
  * This method takes in a string representing the arguments to create a table.
  * It parses those arguments, checks that they are valid, and creates a table.
  **/
-
 message_status parse_create_tbl(char* create_arguments) {
     message_status status = OK_DONE;
     char** create_arguments_index = &create_arguments;
@@ -57,16 +59,17 @@ message_status parse_create_tbl(char* create_arguments) {
     if (col_cnt[last_char] != ')') {
         return INCORRECT_FORMAT;
     }
-    // replace the ')' with a null terminating character. 
+    // replace the ')' with a null terminating character.
     col_cnt[last_char] = '\0';
 
     // check that the database argument is the current active database
     if (strcmp(current_db->name, db_name) != 0) {
-        cs165_log(stdout, "query unsupported. Bad db name");
+        cs165_log(stdout, "query unsupported. Bad db name\n");
         return QUERY_UNSUPPORTED;
     }
 
-    // turn the string column count into an integer, and check that the input is valid.
+    // turn the string column count into an integer, and
+    // check that the input is valid.
     int column_cnt = atoi(col_cnt);
     if (column_cnt < 1) {
         return INCORRECT_FORMAT;
@@ -74,10 +77,9 @@ message_status parse_create_tbl(char* create_arguments) {
     Status create_status;
     create_table(current_db, table_name, column_cnt, &create_status);
     if (create_status.code != OK) {
-        cs165_log(stdout, "adding a table failed.");
+        cs165_log(stdout, "adding a table failed.\n");
         return EXECUTION_ERROR;
     }
-
     return status;
 }
 
@@ -89,9 +91,10 @@ message_status parse_create_tbl(char* create_arguments) {
 message_status parse_create_db(char* create_arguments) {
     char *token;
     token = strsep(&create_arguments, ",");
+    // TODO: remove
     // not enough arguments if token is NULL
     if (token == NULL) {
-        return INCORRECT_FORMAT;                    
+        return INCORRECT_FORMAT;
     } else {
         // create the database with given name
         char* db_name = token;
@@ -116,17 +119,19 @@ message_status parse_create_db(char* create_arguments) {
     }
 }
 
+
 /**
- * parse_create parses a create statement and then passes the necessary arguments off to the next function
+ * parse_create parses a create statement and then passes the necessary
+ * arguments off to the next function
  **/
 message_status parse_create(char* create_arguments) {
     message_status mes_status;
     char *tokenizer_copy, *to_free;
-    // Since strsep destroys input, we create a copy of our input. 
+    // Since strsep destroys input, we create a copy of our input.
     tokenizer_copy = to_free = malloc((strlen(create_arguments)+1) * sizeof(char));
     char *token;
     strcpy(tokenizer_copy, create_arguments);
-    // check for leading parenthesis after create. 
+    // check for leading parenthesis after create.
     if (strncmp(tokenizer_copy, "(", 1) == 0) {
         tokenizer_copy++;
         // token stores first argument. Tokenizer copy now points to just past first ","
@@ -134,7 +139,7 @@ message_status parse_create(char* create_arguments) {
         if (mes_status == INCORRECT_FORMAT) {
             return mes_status;
         } else {
-            // pass off to next parse function. 
+            // pass off to next parse function.
             if (strcmp(token, "db") == 0) {
                 mes_status = parse_create_db(tokenizer_copy);
             } else if (strcmp(token, "tbl") == 0) {
@@ -150,11 +155,11 @@ message_status parse_create(char* create_arguments) {
     return mes_status;
 }
 
+
 /**
- * parse_insert reads in the arguments for a create statement and 
+ * parse_insert reads in the arguments for a create statement and
  * then passes these arguments to a database function to insert a row.
  **/
-
 DbOperator* parse_insert(char* query_command, message* send_message) {
     unsigned int columns_inserted = 0;
     char* token = NULL;
@@ -167,18 +172,18 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         if (send_message->status == INCORRECT_FORMAT) {
             return NULL;
         }
-        // lookup the table and make sure it exists. 
+        // lookup the table and make sure it exists.
         Table* insert_table = lookup_table(table_name);
         if (insert_table == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
             return NULL;
         }
-        // make insert operator. 
+        // make insert operator.
         DbOperator* dbo = malloc(sizeof(DbOperator));
         dbo->type = INSERT;
         dbo->operator_fields.insert_operator.table = insert_table;
         dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
-        // parse inputs until we reach the end. Turn each given string into an integer. 
+        // parse inputs until we reach the end. Turn each given string into an integer.
         while ((token = strsep(command_index, ",")) != NULL) {
             int insert_val = atoi(token);
             dbo->operator_fields.insert_operator.values[columns_inserted] = insert_val;
@@ -189,7 +194,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
             send_message->status = INCORRECT_FORMAT;
             free (dbo);
             return NULL;
-        } 
+        }
         return dbo;
     } else {
         send_message->status = UNKNOWN_COMMAND;
@@ -198,9 +203,11 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
 }
 
 /**
- * parse_command takes as input the send_message from the client and then
- * parses it into the appropriate query. Stores into send_message the
- * status to send back.
+ * parse_command takes as input:
+ * - the send_message from the client and then parses it into the
+ *   appropriate query.
+ * - Stores into send_message the status to send back.
+ *
  * Returns a db_operator.
  **/
 DbOperator* parse_command(char* query_command, message* send_message, int client_socket, ClientContext* context) {
@@ -208,14 +215,14 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 
     if (strncmp(query_command, "--", 2) == 0) {
         send_message->status = OK_DONE;
-        // The -- signifies a comment line, no operator needed.  
+        // The -- signifies a comment line, no operator needed.
         return NULL;
     }
 
     char *equals_pointer = strchr(query_command, '=');
     char *handle = query_command;
     if (equals_pointer != NULL) {
-        // handle exists, store here. 
+        // handle exists, store here.
         *equals_pointer = '\0';
         cs165_log(stdout, "FILE HANDLE: %s\n", handle);
         query_command = ++equals_pointer;
@@ -227,7 +234,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 
     send_message->status = OK_WAIT_FOR_RESPONSE;
     query_command = trim_whitespace(query_command);
-    // check what command is given. 
+    // check what command is given.
     if (strncmp(query_command, "create", 6) == 0) {
         query_command += 6;
         send_message->status = parse_create(query_command);
@@ -240,7 +247,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     if (dbo == NULL) {
         return dbo;
     }
-    
+
     dbo->client_fd = client_socket;
     dbo->context = context;
     return dbo;

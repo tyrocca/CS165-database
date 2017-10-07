@@ -73,30 +73,47 @@ void handle_client(int client_socket) {
 
         if (!done) {
             char recv_buffer[recv_message.length + 1];
-            length = recv(client_socket, recv_buffer, recv_message.length,0);
+            length = recv(client_socket, recv_buffer, recv_message.length, 0);
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
 
             // 1. Parse command
-            DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
+            DbOperator* query = parse_command(
+                recv_message.payload,
+                &send_message,
+                client_socket,
+                client_context
+            );
 
             // 2. Handle request
-            char* result = execute_DbOperator(query);
+            // if we have had a failure - don't continue
+            // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
+            char* result = NULL;
+            if (send_message.status == OK_DONE ||
+                send_message.status == OK_WAIT_FOR_RESPONSE) {
+                // if the command parsing was successful
+                // execute the query
+                result = execute_DbOperator(query);
+            } else {
+                log_err("here in error\n");
+                result = "There was an error";
+                free(query);
+            }
 
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
             send_message.payload = send_buffer;
-            
+
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-                log_err("Failed to send message.");
+                log_err("Failed to send message.\n");
                 exit(1);
             }
 
             // 4. Send response of request
             if (send(client_socket, result, send_message.length, 0) == -1) {
-                log_err("Failed to send message.");
+                log_err("Failed to send message.\n");
                 exit(1);
             }
         }
@@ -155,8 +172,7 @@ int setup_server() {
 // After handling the client, it will exit.
 // You will need to extend this to handle multiple concurrent clients
 // and remain running until it receives a shut-down command.
-int main(void)
-{
+int main(void) {
     int server_socket = setup_server();
     if (server_socket < 0) {
         exit(1);

@@ -26,13 +26,70 @@
  * first character after that comma.
  * This method destroys its input.
  **/
-char* next_token(char** tokenizer, message_status* status) {
-    char* token = strsep(tokenizer, ",");
+char* get_next_token(char** tokenizer, message_status* status, char* split) {
+    char* token = strsep(tokenizer, split);
     if (token == NULL) {
-        *status= INCORRECT_FORMAT;
+        *status = INCORRECT_FORMAT;
     }
     return token;
 }
+char* next_token(char** tokenizer, message_status* status) {
+    char* token = strsep(tokenizer, ",");
+    if (token == NULL) {
+        *status = INCORRECT_FORMAT;
+    }
+    return token;
+}
+
+char* next_db_field(char** tokenizer, message_status* status) {
+    return get_next_token(tokenizer, status, ".");
+}
+
+/**
+ * @brief this function takes in the argument string for the creation
+ * of columns and will create that new column. it will return a status
+ * create(col,"project",awesomebase.grades)
+ * TODO: Make it so that this parses sorted status
+ *
+ * @param create_arguments - this is a string that looks like
+ *   this "project", awesomebase.grades)
+ *
+ * @return message status
+ */
+void parse_create_col(char* create_arguments, Status* status) {
+    char** create_arguments_index = &create_arguments;
+    char* column_name = next_token(create_arguments_index, &status->error_type);
+    char* db_name = next_db_field(create_arguments_index, &status->error_type);
+    char* table_name = next_token(create_arguments_index, &status->error_type);
+
+    // not enough arguments
+    if (status->error_type == INCORRECT_FORMAT) {
+        status->error_message = "Wrong # of args for create col";
+        return;
+    }
+
+    // trim quotes and check for finishing parenthesis.
+    column_name = trim_quotes(column_name);
+    int last_char = strlen(table_name) - 1;
+    if (last_char <= 0 || table_name[last_char] != ')') {
+        status->error_type = INCORRECT_FORMAT;
+        status->error_message = "Create Col does doesn't end with )";
+        return;
+    }
+
+    // replace final ')' with null-termination character.
+    table_name[last_char] = '\0';
+    printf("NAME IS %s", db_name);
+    printf("NAME IS %s", table_name);
+
+    Table* tbl = get_table_from_db(db_name, table_name, status);
+    if (tbl) {
+        create_column(column_name, status, sorted);
+    }
+}
+
+
+
 
 
 /**
@@ -59,14 +116,9 @@ message_status parse_create_tbl(char* create_arguments) {
     if (col_cnt[last_char] != ')') {
         return INCORRECT_FORMAT;
     }
+
     // replace the ')' with a null terminating character.
     col_cnt[last_char] = '\0';
-
-    // check that the database argument is the current active database
-    if (strcmp(current_db->name, db_name) != 0) {
-        cs165_log(stdout, "query unsupported. Bad db name\n");
-        return QUERY_UNSUPPORTED;
-    }
 
     // turn the string column count into an integer, and
     // check that the input is valid.
@@ -74,7 +126,13 @@ message_status parse_create_tbl(char* create_arguments) {
     if (column_cnt < 1) {
         return INCORRECT_FORMAT;
     }
+    // now make the table
     Status create_status;
+    // check that the database argument is the current active database
+    if (!get_valid_db(db_name, &create_status)) {
+        cs165_log(stdout, "query unsupported. Bad db name\n");
+        return QUERY_UNSUPPORTED;
+    }
     create_table(current_db, table_name, column_cnt, &create_status);
     if (create_status.code != OK) {
         cs165_log(stdout, "adding a table failed.\n");
@@ -91,7 +149,6 @@ message_status parse_create_tbl(char* create_arguments) {
 message_status parse_create_db(char* create_arguments) {
     char *token;
     token = strsep(&create_arguments, ",");
-    // TODO: remove
     // not enough arguments if token is NULL
     if (token == NULL) {
         return INCORRECT_FORMAT;
@@ -125,34 +182,38 @@ message_status parse_create_db(char* create_arguments) {
  * arguments off to the next function
  **/
 message_status parse_create(char* create_arguments) {
-    message_status mes_status;
+    Status status;
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input.
+    // could we also use strdup?
     tokenizer_copy = to_free = malloc((strlen(create_arguments)+1) * sizeof(char));
     char *token;
     strcpy(tokenizer_copy, create_arguments);
     // check for leading parenthesis after create.
     if (strncmp(tokenizer_copy, "(", 1) == 0) {
         tokenizer_copy++;
-        // token stores first argument. Tokenizer copy now points to just past first ","
-        token = next_token(&tokenizer_copy, &mes_status);
-        if (mes_status == INCORRECT_FORMAT) {
-            return mes_status;
+        // token stores first argument. Tokenizer copy now points to
+        // just past first ","
+        token = next_token(&tokenizer_copy, &status.error_type);
+        if (status.error_type == INCORRECT_FORMAT) {
+            return status.error_type;
         } else {
             // pass off to next parse function.
             if (strcmp(token, "db") == 0) {
-                mes_status = parse_create_db(tokenizer_copy);
+                status.error_type = parse_create_db(tokenizer_copy);
             } else if (strcmp(token, "tbl") == 0) {
-                mes_status = parse_create_tbl(tokenizer_copy);
+                status.error_type = parse_create_tbl(tokenizer_copy);
+            } else if (strcmp(token, "col") == 0) {
+                parse_create_col(tokenizer_copy, &status);
             } else {
-                mes_status = UNKNOWN_COMMAND;
+                status.error_type = UNKNOWN_COMMAND;
             }
         }
     } else {
-        mes_status = UNKNOWN_COMMAND;
+        status.error_type = UNKNOWN_COMMAND;
     }
     free(to_free);
-    return mes_status;
+    return status.error_type;
 }
 
 
@@ -230,6 +291,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         handle = NULL;
     }
 
+    // display the query in the log
     cs165_log(stdout, "QUERY: %s\n", query_command);
 
     send_message->status = OK_WAIT_FOR_RESPONSE;

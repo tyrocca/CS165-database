@@ -26,6 +26,8 @@ SOFTWARE.
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+// TODO: is this ok
+#include "message.h"
 
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
@@ -110,6 +112,7 @@ typedef enum StatusCode {
 // status declares an error code and associated message
 typedef struct Status {
     StatusCode code;
+    message_status error_type;
     char* error_message;
 } Status;
 
@@ -243,6 +246,28 @@ Status db_startup();
  **/
 Status sync_db(Db* db);
 
+/**
+ * HELPERS IN DBOPS files
+ */
+
+// Getters - these function get the object
+Db* get_valid_db(const char* db_name, Status* status);
+
+Table* get_table(Db* db, const char* table_name, Status* status);
+
+Table* get_table_from_db(const char* db_name, const char* table_name, Status* status);
+
+Column* get_column(Db* db, const char* table_name, const char* col_name, Status* status);
+
+Column* get_column_from_db(
+  const char* db_name,
+  const char* table_name,
+  const char* col_name,
+  Status* status
+);
+/**
+ * END TY things
+ */
 Status add_db(const char* db_name, bool is_new);
 
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);

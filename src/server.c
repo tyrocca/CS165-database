@@ -30,7 +30,8 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
-/** execute_DbOperator takes as input the DbOperator and executes the query.
+/**
+ * execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
  **/
@@ -95,11 +96,12 @@ void handle_client(int client_socket) {
                 // execute the query
                 result = execute_DbOperator(query);
             } else {
-                log_err("here in error\n");
+                log_info("Error inside parse \n");
                 result = "There was an error";
                 free(query);
             }
 
+            // TODO: determine why returns don't work after an error
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);

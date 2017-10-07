@@ -16,7 +16,7 @@
 /* removes newline characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of newline characters.
- */ 
+ */
 char* trim_newline(char *str) {
     int length = strlen(str);
     int current = 0;
@@ -33,7 +33,7 @@ char* trim_newline(char *str) {
 /* removes space characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of space characters.
- */ 
+ */
 char* trim_whitespace(char *str)
 {
     int length = strlen(str);
@@ -52,7 +52,7 @@ char* trim_whitespace(char *str)
 /* removes parenthesis characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of parenthesis characters.
- */ 
+ */
 char* trim_parenthesis(char *str) {
     int length = strlen(str);
     int current = 0;

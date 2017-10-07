@@ -63,8 +63,8 @@ server: server.o parse.o utils.o db_manager.o client_context.o
 clean:
 	rm -f client server *.o *~ *.bak core *.core cs165_unix_socket
 	rm -rf .deps
-	# I added this BC macs add this
-	rm -rf *.dYSM
+	rm -f /tmp/cs165_unix_socket
+	rm -rf *.dSYM
 
 distclean: clean
 	rm -rf $(DEPSDIR)

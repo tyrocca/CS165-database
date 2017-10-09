@@ -1,14 +1,40 @@
 #include <string.h>
 #include "client_context.h"
 
-/* This is an example of a function you will need to
- * implement in your catalogue. It takes in a string (char *)
- * and outputs a pointer to a table object. Similar methods
- * will be needed for columns and databases. How you choose
- * to implement the method is up to you.
+/**
+ * @brief This function is used for getting the next index in a column. It
+ *  takes a the table and status and will return an index that tells you
+ *  where to add the column values
+ *
+ * @param table - Table* pointer to the
+ * @param ret_status - Status* pointer to the status object (tells success)
+ *
+ * @return size_t - where to add the column
  */
-Table* lookup_table(char *name) {
-	return NULL;
+size_t next_table_idx(Table* table, Status* ret_status) {
+    // get the index of the column - realloc if needed
+    table->table_size++;
+    if (table->table_size == table->table_length) {
+        // double size of table
+        table->table_length *= 2;
+        // reallocate each column
+        size_t idx = 0;
+        while (idx < table->col_count && ret_status->code != ERROR) {
+            // realloc the table
+            int* tmp = realloc(
+                table->columns[idx].data,
+                table->table_length * sizeof(int)
+            );
+            // check for error in realloc
+            if (!tmp) {
+                ret_status->code = ERROR;
+                ret_status->error_type = MEM_ALLOC_FAILED;
+                ret_status->error_message = "Could not reallocate new data";
+            }
+            table->columns[idx].data = tmp;
+        }
+    }
+    return table->table_size;
 }
 
 /**
@@ -36,9 +62,9 @@ Db* get_valid_db(const char* db_name, Status* status) {
  * @brief This function takes a database and table name and returns
  *   the name of the table
  *
- * @param db - db object
- * @param table_name - the table's name
- * @param status - pointer to the status of the operation
+ * @param db db object
+ * @param table_name the table's name
+ * @param status pointer to the status of the operation
  *
  * @return
  */

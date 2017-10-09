@@ -1,7 +1,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "cs165_api.h"
-#define DEFAULT_TABLE_SIZE 10
+#define DEFAULT_TABLE_SIZE 8
+#define DEFAULT_COLUMN_SIZE 256
 
 // In this class, there will always be only one active database at a time
 Db* current_db;
@@ -16,7 +17,7 @@ Db* current_db;
  *
  * @return
  */
-Column* create_column(char *name, Table *table, bool sorted, Status *ret_status) {
+Column* create_column(char *name, Table* table, bool sorted, Status *ret_status) {
     // TODO: add in sorting ability
     (void) sorted;
     ret_status->code = ERROR;
@@ -26,15 +27,21 @@ Column* create_column(char *name, Table *table, bool sorted, Status *ret_status)
     size_t idx = 0;
     while (idx < table->col_count) {
         // set column if we can find a free one
-        if(table->columns[idx].name[0] == '\0') {
+        if (table->columns[idx].name[0] == '\0') {
             ret_status->code = OK;
             ret_status->error_type = 0;
             // set the new column
             new_col = table->columns + idx;
             strcpy(new_col->name, name);
-            new_col->data = NULL;
             // TODO: add indexes
             new_col->index = NULL;
+            new_col->data = malloc(table->table_length * sizeof(int));
+            if (!new_col->data) {
+                ret_status->code = ERROR;
+                ret_status->error_type = MEM_ALLOC_FAILED;
+                ret_status->error_message = "Couldn't allocate new data";
+                return NULL;
+            }
             return new_col;
         }
         idx++;
@@ -60,16 +67,18 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
             ret_status->error_message = "Could not reallocate new tables";
             return NULL;
         }
+        db->tables = tmp;
     }
 
     // set the table at the newest space
     Table* new_table = db->tables + db->tables_size;
     strcpy(new_table->name, name);
-    new_table->table_length = 0;
+    new_table->table_length = DEFAULT_COLUMN_SIZE;
+    new_table->table_size = 0;
     new_table->col_count = num_columns;
 
     // allocate new columns
-    /* new_table->columns = malloc(new_table->col_count * sizeof(Column)); */
+    // TODO: is calloc necessary here
     new_table->columns = calloc(new_table->col_count, sizeof(Column));
     if (!new_table->columns) {
         ret_status->code = ERROR;

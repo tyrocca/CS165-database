@@ -33,12 +33,9 @@ char* get_next_token(char** tokenizer, message_status* status, char* split) {
     }
     return token;
 }
+
 char* next_token(char** tokenizer, message_status* status) {
-    char* token = strsep(tokenizer, ",");
-    if (token == NULL) {
-        *status = INCORRECT_FORMAT;
-    }
-    return token;
+    return get_next_token(tokenizer, status, ",");
 }
 
 char* next_db_field(char** tokenizer, message_status* status) {
@@ -87,9 +84,6 @@ void parse_create_col(char* create_arguments, Status* status) {
         create_column(column_name, tbl, sorted, status);
     }
 }
-
-
-
 
 
 /**
@@ -230,7 +224,7 @@ message_status parse_create(char* create_arguments, Status* status) {
  * parse_insert reads in the arguments for a create statement and
  * then passes these arguments to a database function to insert a row.
  **/
-DbOperator* parse_insert(char* query_command, message* send_message) {
+DbOperator* parse_insert(char* query_command, Status* status) {
     unsigned int columns_inserted = 0;
     char* token = NULL;
     // check for leading '('
@@ -238,14 +232,16 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         query_command++;
         char** command_index = &query_command;
         // parse table input
-        char* table_name = next_token(command_index, &send_message->status);
-        if (send_message->status == INCORRECT_FORMAT) {
+        char* db_name = next_db_field(command_index, &status->error_type);
+        char* table_name = next_token(command_index, &status->error_type);
+        if (status->error_type == INCORRECT_FORMAT) {
+            status->code = ERROR;
+            status->error_message = "Wrong format for table name";
             return NULL;
         }
         // lookup the table and make sure it exists.
-        Table* insert_table = lookup_table(table_name);
+        Table* insert_table = get_table_from_db(db_name, table_name, status);
         if (insert_table == NULL) {
-            send_message->status = OBJECT_NOT_FOUND;
             return NULL;
         }
         // make insert operator.
@@ -261,13 +257,16 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         }
         // check that we received the correct number of input values
         if (columns_inserted != insert_table->col_count) {
-            send_message->status = INCORRECT_FORMAT;
+            status->error_type = INCORRECT_FORMAT;
+            status->code = ERROR;
+            status->error_message = "Wrong number of values for row";
             free (dbo);
             return NULL;
         }
         return dbo;
     } else {
-        send_message->status = UNKNOWN_COMMAND;
+        status->error_type = UNKNOWN_COMMAND;
+        status->code = ERROR;
         return NULL;
     }
 }
@@ -280,7 +279,12 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
  *
  * Returns a db_operator.
  **/
-DbOperator* parse_command(char* query_command, message* send_message, int client_socket, ClientContext* context) {
+DbOperator* parse_command(
+    char* query_command,
+    message* send_message,
+    int client_socket,
+    ClientContext* context
+) {
     DbOperator *dbo = NULL; // = malloc(sizeof(DbOperator)); // calloc?
 
     if (strncmp(query_command, "--", 2) == 0) {
@@ -320,10 +324,11 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         dbo->type = CREATE;
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
-        dbo = parse_insert(query_command, send_message);
+        dbo = parse_insert(query_command, &internal_status);
+        send_message->status = internal_status.error_type;
     }
     // appropriately log errors
-    if (internal_status.code != OK) {
+    if (internal_status.code == ERROR) {
         cs165_log(
             stdout,
             "Internal Error [%d]: %s\n",

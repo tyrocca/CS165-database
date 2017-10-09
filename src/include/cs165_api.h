@@ -53,7 +53,7 @@ struct Comparator;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME];
-    int* data;
+    int* data; // TODO - make this datatype
     // You will implement column indexes later.
     void* index;
     //struct ColumnIndex *index;
@@ -73,6 +73,7 @@ typedef struct Column {
  * - col_count, the number of columns in the table
  * - columns this is the pointer to an array of columns contained in the table.
  * - table_length, the size of the columns in the table.
+ * - table_size, the size of the table
  **/
 
 typedef struct Table {
@@ -80,6 +81,7 @@ typedef struct Table {
     Column *columns;
     size_t col_count;
     size_t table_length;
+    size_t table_size;
 } Table;
 
 /**
@@ -196,6 +198,7 @@ typedef struct Comparator {
 typedef enum OperatorType {
     CREATE,
     INSERT,
+    SELECT,
     OPEN,
 } OperatorType;
 /*

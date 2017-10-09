@@ -3,7 +3,7 @@
 
 #include "cs165_api.h"
 
-Table* lookup_table(char *name);
+size_t next_table_idx(Table* table, Status* ret_status);
 
 Db* get_valid_db(const char* db_name, Status* status);
 

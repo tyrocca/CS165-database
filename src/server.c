@@ -27,18 +27,10 @@
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"
+#include "db_operations.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
-/**
- * execute_DbOperator takes as input the DbOperator and executes the query.
- * This should be replaced in your implementation (and its implementation possibly moved to a different file).
- * It is currently here so that you can verify that your server and client can send messages.
- **/
-char* execute_DbOperator(DbOperator* query) {
-    free(query);
-    return "165";
-}
 
 /**
  * handle_client(client_socket)
@@ -90,15 +82,17 @@ void handle_client(int client_socket) {
             // if we have had a failure - don't continue
             // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
             char* result = NULL;
-            if (send_message.status == OK_DONE ||
-                send_message.status == OK_WAIT_FOR_RESPONSE) {
-                // if the command parsing was successful
-                // execute the query
-                result = execute_DbOperator(query);
-            } else {
-                log_info("Error inside parse \n");
-                result = "There was an error";
-                free(query);
+            switch(send_message.status) {
+                case OK_DONE:
+                    free(query);
+                    break;
+                case OK_WAIT_FOR_RESPONSE:
+                    result = execute_DbOperator(query);
+                    break;
+                default:
+                    log_info("Error inside parse \n");
+                    result = "There was an error";
+                    free(query);
             }
 
             // TODO: determine why returns don't work after an error

@@ -25,8 +25,8 @@ SOFTWARE.
 
 #include <stdlib.h>
 #include <stdbool.h>
-#include <stdio.h>
-// TODO: is this ok
+// TODO - needed
+/* #include <stdio.h> */
 #include "message.h"
 
 // Limits the size of a name in our database to 64 characters
@@ -209,7 +209,7 @@ typedef struct InsertOperator {
     int* values;
 } InsertOperator;
 /*
- * necessary fields for insertion
+ * necessary fields for Opening
  */
 typedef struct OpenOperator {
     char* db_name;
@@ -251,25 +251,6 @@ Status sync_db(Db* db);
 
 /**
  * HELPERS IN DBOPS files
- */
-
-// Getters - these function get the object
-/* Db* get_valid_db(const char* db_name, Status* status); */
-
-/* Table* get_table(Db* db, const char* table_name, Status* status); */
-
-/* Table* get_table_from_db(const char* db_name, const char* table_name, Status* status); */
-
-/* Column* get_column(Table* table, const char* col_name, Status* status); */
-
-/* Column* get_column_from_db( */
-/*     const char* db_name, */
-/*     const char* table_name, */
-/*     const char* col_name, */
-/*     Status* status */
-/* ); */
-/**
- * END TY things
  */
 Status add_db(const char* db_name, bool is_new);
 

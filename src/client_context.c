@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "client_context.h"
 
 /**
@@ -13,7 +14,6 @@
  */
 size_t next_table_idx(Table* table, Status* ret_status) {
     // get the index of the column - realloc if needed
-    table->table_size++;
     if (table->table_size == table->table_length) {
         // double size of table
         table->table_length *= 2;
@@ -34,7 +34,9 @@ size_t next_table_idx(Table* table, Status* ret_status) {
             table->columns[idx].data = tmp;
         }
     }
-    return table->table_size;
+    // increase size and return previous value
+    table->table_size++;
+    return table->table_size - 1;
 }
 
 /**
@@ -77,7 +79,6 @@ Table* get_table(Db* db, const char* table_name, Status* status) {
     for (size_t i = 0; i < db->tables_size; i++) {
         if(strcmp(db->tables[i].name, table_name) == 0) {
             status->code = OK;
-            status->error_type = OBJECT_ALREADY_EXISTS;
             status->error_message = "Table Found";
             return db->tables + i;
         }
@@ -124,7 +125,6 @@ Column* get_column(Table* table, const char* col_name, Status* status) {
     for (size_t i = 0; i < table->col_count; i++) {
         if(strcmp(table->columns[i].name, col_name) == 0) {
             status->code = OK;
-            status->error_type = OBJECT_ALREADY_EXISTS;
             status->error_message = "Column Found";
             return table->columns + i;
         }

@@ -131,8 +131,8 @@ int main(void) {
                     log_err("Failed to receive message.");
                 }
                 else {
-		            log_info("Server closed connection\n");
-		        }
+                    log_info("Server closed connection\n");
+                }
                 exit(1);
             }
         }

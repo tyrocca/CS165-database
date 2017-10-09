@@ -1,6 +1,6 @@
+#include "cs165_api.h"
 #include <string.h>
 #include <stdlib.h>
-#include "cs165_api.h"
 #define DEFAULT_TABLE_SIZE 8
 #define DEFAULT_COLUMN_SIZE 256
 
@@ -102,6 +102,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
  */
 Status add_db(const char* db_name, bool is_new) {
     // TODO: use is_new flag to determine whether we need to create
+    (void) is_new;
     struct Status ret_status = { .code = OK };
 
     // allocate space for db

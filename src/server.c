@@ -26,7 +26,8 @@
 #include "cs165_api.h"
 #include "message.h"
 #include "utils.h"
-#include "client_context.h"
+// TODO: cleanup
+/* #include "client_context.h" */
 #include "db_operations.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
@@ -84,8 +85,6 @@ void handle_client(int client_socket) {
             char* result = NULL;
             switch(send_message.status) {
                 case OK_DONE:
-                    free(query);
-                    break;
                 case OK_WAIT_FOR_RESPONSE:
                     result = execute_DbOperator(query);
                     break;

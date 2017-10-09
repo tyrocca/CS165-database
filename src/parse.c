@@ -17,7 +17,6 @@
 #include "utils.h"
 #include "client_context.h"
 
-
 /**
  * Takes a pointer to a string.
  * This method returns the original string truncated
@@ -313,7 +312,7 @@ DbOperator* parse_command(
     // use this for tracking the status inside
     Status internal_status = {
         .code = OK,
-        .error_type = 0,
+        .error_type = OK_WAIT_FOR_RESPONSE,
         .error_message = ""
     };
     // check what command is given.

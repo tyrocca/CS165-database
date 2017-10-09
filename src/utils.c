@@ -80,6 +80,7 @@ char* trim_quotes(char *str) {
     str[current] = '\0';
     return str;
 }
+
 /* The following three functions will show output on the terminal
  * based off whether the corresponding level is defined.
  * To see log output, define LOG.

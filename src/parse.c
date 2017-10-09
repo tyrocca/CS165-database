@@ -61,6 +61,8 @@ void parse_create_col(char* create_arguments, Status* status) {
     char* column_name = next_token(create_arguments_index, &status->error_type);
     char* db_name = next_db_field(create_arguments_index, &status->error_type);
     char* table_name = next_token(create_arguments_index, &status->error_type);
+    // TODO
+    bool sorted = false;
 
     // not enough arguments
     if (status->error_type == INCORRECT_FORMAT) {
@@ -84,7 +86,7 @@ void parse_create_col(char* create_arguments, Status* status) {
 
     Table* tbl = get_table_from_db(db_name, table_name, status);
     if (tbl) {
-        create_column(column_name, status, sorted);
+        create_column(column_name, tbl, sorted, status);
     }
 }
 

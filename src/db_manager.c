@@ -43,8 +43,7 @@ Table* get_table(Db* db, const char* table_name, Status* status) {
         db = current_db;
     }
     // TODO: make this a hash table or something faster!
-    int max_size = (int) db->tables_size;
-    for (int i = 0; i < max_size; i++) {
+    for (size_t i = 0; i < db->tables_size; i++) {
         if(strcmp(db->tables[i].name, table_name) == 0) {
             status->code = OK;
             status->error_type = OBJECT_ALREADY_EXISTS;
@@ -71,14 +70,8 @@ Table* get_table(Db* db, const char* table_name, Status* status) {
  */
 Table* get_table_from_db(const char* db_name, const char* table_name, Status* status) {
     // if no database return null
-    if (!db) {
-        db = current_db;
-    }
-    if (!table) {
-        table = get_table(db, table_name,
-    }
     Db* database = get_valid_db(db_name, status);
-    if (database) {
+    if (!database) {
         return NULL;
     }
     return get_table(database, table_name, status);
@@ -86,7 +79,7 @@ Table* get_table_from_db(const char* db_name, const char* table_name, Status* st
 
 /**
  * @brief this function will return the column on a get request
- * TODO: speed up - super slow right now
+ * TODO: lookup improvements
  *
  * @param db_name
  * @param table_name
@@ -96,13 +89,13 @@ Table* get_table_from_db(const char* db_name, const char* table_name, Status* st
  * @return
  */
 Column* get_column(Table* table, const char* col_name, Status* status) {
-    int max_size = (int) tbl->col_count;
-    for (int i = 0; i < max_size; i++) {
-        if(strcmp(tbl->columns[i].name, col_name) == 0) {
+    // this try to find matching column (speed improvements here)
+    for (size_t i = 0; i < table->col_count; i++) {
+        if(strcmp(table->columns[i].name, col_name) == 0) {
             status->code = OK;
             status->error_type = OBJECT_ALREADY_EXISTS;
-            status->error_message = "Table Found";
-            return tbl->columns + i;
+            status->error_message = "Column Found";
+            return table->columns + i;
         }
     }
     // if it didn't return we know that we had an error
@@ -115,12 +108,12 @@ Column* get_column(Table* table, const char* col_name, Status* status) {
 /**
  * @brief This is a wrapper for getting a column from only strings
  *
- * @param db_name
- * @param table_name
- * @param col_name
- * @param status
+ * @param db_name - string of db name
+ * @param table_name - string of table name
+ * @param col_name - string of column name
+ * @param status - status struct
  *
- * @return
+ * @return - column or null if none found
  */
 Column* get_column_from_db(
     const char* db_name,
@@ -129,38 +122,58 @@ Column* get_column_from_db(
     Status* status
 ) {
     // Check for database
-    Db* database = get_valid_db(db_name, status);
-    if (database) {
+    Table* table = get_table_from_db(db_name, table_name, status);
+    if (!table) {
         return NULL;
     }
-    return get_column(table_name, col_name, status);
+    return get_column(table, col_name, status);
 }
 
 /**
  * Creation Functions
  */
 
+/**
+ * @brief This function creates a new column in the database
+ *
+ * @param name - column name
+ * @param table - table name
+ * @param sorted - whether it is sorted
+ * @param ret_status - status struct
+ *
+ * @return
+ */
 Column* create_column(char *name, Table *table, bool sorted, Status *ret_status) {
+    // TODO: add in sorting ability
+    (void) sorted;
+    ret_status->code = ERROR;
+    Column* new_col = NULL;
     // ensure that we are not duplicating tables
     if (get_column(table, name, ret_status)) {
-        ret_status->code = ERROR;
         ret_status->error_type = OBJECT_ALREADY_EXISTS;
         ret_status->error_message = "Column already exists";
-        return NULL;
+        return new_col;
     }
-    ret_status->code = OK;
-
-    // set the table at the newest space
-    Column* new_table = table->tables + table->col_count;
-    strcpy(new_table->name, name);
-    new_table->table_length = 0;
-    new_table->col_count = num_columns;
-
-    // increase the database table count
-    table->col_count++;
-    return new_table;
-
-
+    // determine where we can add the column
+    size_t idx = 0;
+    while (idx < table->col_count) {
+        // set column if we can find a free one
+        if(table->columns[idx].name[0] == '\0') {
+            ret_status->code = OK;
+            ret_status->error_type = 0;
+            // set the new column
+            new_col = table->columns + idx;
+            strcpy(new_col->name, name);
+            new_col->data = NULL;
+            // TODO: add indexes
+            new_col->index = NULL;
+            return new_col;
+        }
+        idx++;
+    }
+    ret_status->error_type = EXECUTION_ERROR;
+    ret_status->error_message = "Column could not be created";
+    return new_col;
 }
 
 /*
@@ -179,7 +192,6 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
             ret_status->error_message = "Could not reallocate new tables";
             return NULL;
         }
-        db->tables_capacity++;
     }
 
     // ensure that we are not duplicating tables
@@ -198,7 +210,8 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
     new_table->col_count = num_columns;
 
     // allocate new columns
-    new_table->columns = malloc(new_table->col_count * sizeof(Column));
+    /* new_table->columns = malloc(new_table->col_count * sizeof(Column)); */
+    new_table->columns = calloc(new_table->col_count, sizeof(Column));
     if (!new_table->columns) {
         ret_status->code = ERROR;
         ret_status->error_type = MEM_ALLOC_FAILED;

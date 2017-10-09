@@ -5,7 +5,8 @@
 #define DEFAULT_COLUMN_SIZE 256
 
 // In this class, there will always be only one active database at a time
-Db* current_db;
+Db* current_db = NULL;
+Db* db_head = NULL;
 
 /**
  * @brief This function creates a new column in the database
@@ -100,12 +101,25 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
  * from disk, or one can divide the two into two different
  * methods.
  */
-Status add_db(const char* db_name, bool is_new) {
+Status add_db(const char* db_name, bool from_load) {
     // TODO: use is_new flag to determine whether we need to create
-    (void) is_new;
+    // also determine if we need to rewrite the files
     struct Status ret_status = { .code = OK };
+    Db* db_ptr = db_head;
 
-    // allocate space for db
+    // see if db exists and return (if not from load)
+    if (from_load == false) {
+        while (db_ptr && db_ptr->next_db) {
+            if (strcmp(db_ptr->name, db_name) == 0) {
+                current_db = db_ptr;
+                return ret_status;
+            }
+            db_ptr = db_ptr->next_db;
+        }
+    }
+
+    // If we get here we have a new database so we should
+    // enter into the next cycle
     current_db = malloc(sizeof(Db));
     if (!current_db) {
         ret_status.code = ERROR;
@@ -113,16 +127,24 @@ Status add_db(const char* db_name, bool is_new) {
         ret_status.error_message = "Could not allocate space for DB";
         return ret_status;
     }
+
     // initialize DB and allocate space for the tables
     strcpy(current_db->name, db_name);
+    current_db->next_db = NULL;
     current_db->tables_size = 0;
     current_db->tables_capacity = DEFAULT_TABLE_SIZE;
+
     // allocate table
     current_db->tables = malloc(current_db->tables_capacity * sizeof(Table));
-    if (!current_db->tables) {
+    if (current_db->tables == NULL) {
         ret_status.code = ERROR;
         ret_status.error_type = MEM_ALLOC_FAILED;
         ret_status.error_message = "Could not allocate space for tables";
+    }
+
+    // set the head of the list
+    if (!db_head) {
+        db_head = current_db;
     }
     return ret_status;
 }

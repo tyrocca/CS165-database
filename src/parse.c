@@ -171,7 +171,7 @@ message_status parse_create_db(char* create_arguments) {
         if (token != NULL) {
             return INCORRECT_FORMAT;
         }
-        if (add_db(db_name, true).code == OK) {
+        if (add_db(db_name, false).code == OK) {
             return OK_DONE;
         } else {
             return EXECUTION_ERROR;

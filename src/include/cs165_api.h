@@ -99,6 +99,7 @@ typedef struct Db {
     Table* tables;
     size_t tables_size;
     size_t tables_capacity;
+    struct Db* next_db;
 } Db;
 
 /**
@@ -237,6 +238,7 @@ typedef struct DbOperator {
 } DbOperator;
 
 extern Db* current_db;
+extern Db* db_head;
 
 Status db_startup();
 
@@ -252,7 +254,7 @@ Status sync_db(Db* db);
 /**
  * HELPERS IN DBOPS files
  */
-Status add_db(const char* db_name, bool is_new);
+Status add_db(const char* db_name, bool from_load);
 
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
 

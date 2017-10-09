@@ -20,6 +20,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "common.h"
 #include "parse.h"
@@ -32,6 +33,9 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
+bool db_exists() {
+    return access("./database/database.txt", F_OK) != -1 ? true : false;
+}
 
 /**
  * handle_client(client_socket)
@@ -43,6 +47,11 @@ void handle_client(int client_socket) {
     int length = 0;
 
     log_info("Connected to socket: %d.\n", client_socket);
+    if (db_exists()) {
+        log_info("Database found... loading", client_socket);
+        db_startup();
+    }
+
 
     // Create two messages, one from which to read and one from which to receive
     message send_message;
@@ -185,6 +194,7 @@ int main(void) {
     }
 
     handle_client(client_socket);
+
 
     return 0;
 }

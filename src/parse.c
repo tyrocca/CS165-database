@@ -81,8 +81,6 @@ void parse_create_col(char* create_arguments, Status* status) {
 
     // replace final ')' with null-termination character.
     table_name[last_char] = '\0';
-    printf("NAME IS %s", db_name);
-    printf("NAME IS %s", table_name);
 
     Table* tbl = get_table_from_db(db_name, table_name, status);
     if (tbl) {
@@ -97,6 +95,7 @@ void parse_create_col(char* create_arguments, Status* status) {
 /**
  * This method takes in a string representing the arguments to create a table.
  * It parses those arguments, checks that they are valid, and creates a table.
+ * TODO: determine what to do about status here
  **/
 message_status parse_create_tbl(char* create_arguments) {
     message_status status = OK_DONE;
@@ -131,11 +130,20 @@ message_status parse_create_tbl(char* create_arguments) {
     // now make the table
     Status create_status;
     // check that the database argument is the current active database
-    if (!get_valid_db(db_name, &create_status)) {
+    Db* database = get_valid_db(db_name, &create_status);
+    if (!database) {
         cs165_log(stdout, "query unsupported. Bad db name\n");
         return QUERY_UNSUPPORTED;
     }
-    create_table(current_db, table_name, column_cnt, &create_status);
+    // ensure that we are not duplicating tables
+    if (get_table(database, table_name, &create_status)) {
+        create_status.code = ERROR;
+        create_status.error_type = OBJECT_ALREADY_EXISTS;
+        create_status.error_message = "Table already exists";
+        return create_status.error_type;
+    }
+    // if everything works then return
+    create_table(database, table_name, column_cnt, &create_status);
     if (create_status.code != OK) {
         cs165_log(stdout, "adding a table failed.\n");
         return EXECUTION_ERROR;
@@ -183,8 +191,7 @@ message_status parse_create_db(char* create_arguments) {
  * parse_create parses a create statement and then passes the necessary
  * arguments off to the next function
  **/
-message_status parse_create(char* create_arguments) {
-    Status status;
+message_status parse_create(char* create_arguments, Status* status) {
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input.
     // could we also use strdup?
@@ -196,26 +203,26 @@ message_status parse_create(char* create_arguments) {
         tokenizer_copy++;
         // token stores first argument. Tokenizer copy now points to
         // just past first ","
-        token = next_token(&tokenizer_copy, &status.error_type);
-        if (status.error_type == INCORRECT_FORMAT) {
-            return status.error_type;
+        token = next_token(&tokenizer_copy, &status->error_type);
+        if (status->error_type == INCORRECT_FORMAT) {
+            return status->error_type;
         } else {
             // pass off to next parse function.
             if (strcmp(token, "db") == 0) {
-                status.error_type = parse_create_db(tokenizer_copy);
+                status->error_type = parse_create_db(tokenizer_copy);
             } else if (strcmp(token, "tbl") == 0) {
-                status.error_type = parse_create_tbl(tokenizer_copy);
+                status->error_type = parse_create_tbl(tokenizer_copy);
             } else if (strcmp(token, "col") == 0) {
-                parse_create_col(tokenizer_copy, &status);
+                parse_create_col(tokenizer_copy, status);
             } else {
-                status.error_type = UNKNOWN_COMMAND;
+                status->error_type = UNKNOWN_COMMAND;
             }
         }
     } else {
-        status.error_type = UNKNOWN_COMMAND;
+        status->error_type = UNKNOWN_COMMAND;
     }
     free(to_free);
-    return status.error_type;
+    return status->error_type;
 }
 
 
@@ -298,20 +305,37 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 
     send_message->status = OK_WAIT_FOR_RESPONSE;
     query_command = trim_whitespace(query_command);
+
+    // use this for tracking the status inside
+    Status internal_status = {
+        .code = OK,
+        .error_type = 0,
+        .error_message = ""
+    };
     // check what command is given.
     if (strncmp(query_command, "create", 6) == 0) {
         query_command += 6;
-        send_message->status = parse_create(query_command);
+        send_message->status = parse_create(query_command, &internal_status);
         dbo = malloc(sizeof(DbOperator));
         dbo->type = CREATE;
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
     }
+    // appropriately log errors
+    if (internal_status.code != OK) {
+        cs165_log(
+            stdout,
+            "Internal Error [%d]: %s\n",
+            internal_status.error_type,
+            internal_status.error_message
+        );
+    }
+
+    // return null is nothing was returned
     if (dbo == NULL) {
         return dbo;
     }
-
     dbo->client_fd = client_socket;
     dbo->context = context;
     return dbo;

@@ -30,3 +30,7 @@ r*hs # vtune output
 .deps # makefile temps
 *.dSYM/
 .vagrant/
+database/
+.gdb_history
+.gdbinit
+

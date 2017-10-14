@@ -33,6 +33,11 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
+/**
+ * @brief Function that returns a bool as to whether a file exists
+ *
+ * @return Bool - if the database file exists
+ */
 bool db_exists() {
     return access("./database/database.txt", F_OK) != -1 ? true : false;
 }
@@ -47,11 +52,11 @@ void handle_client(int client_socket) {
     int length = 0;
 
     log_info("Connected to socket: %d.\n", client_socket);
+    // check if there is a database to load
     if (db_exists()) {
         log_info("Database found... loading", client_socket);
         db_startup();
     }
-
 
     // Create two messages, one from which to read and one from which to receive
     message send_message;

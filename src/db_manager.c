@@ -6,6 +6,7 @@
 
 // In this class, there will always be only one active database at a time
 Db* current_db = NULL;
+// use this to keep track of all databases
 Db* db_head = NULL;
 
 /**

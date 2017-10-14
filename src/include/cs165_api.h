@@ -77,7 +77,7 @@ typedef struct Column {
  **/
 
 typedef struct Table {
-    char name [MAX_SIZE_NAME];
+    char name[MAX_SIZE_NAME];
     Column *columns;
     size_t col_count;
     size_t table_length;
@@ -242,6 +242,9 @@ extern Db* db_head;
 
 Status db_startup();
 
+// this will update the file with the databases
+Status update_db_file();
+
 /**
  * sync_db(db)
  * Saves the current status of the database to disk.
@@ -256,10 +259,21 @@ Status sync_db(Db* db);
  */
 Status add_db(const char* db_name, bool from_load);
 
-Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
+Table* create_table(
+  Db* db,
+  const char* name,
+  size_t num_columns,
+  Status *status
+);
 
-Column* create_column(char *name, Table *table, bool sorted, Status *ret_status);
+Column* create_column(
+  char *name,
+  Table *table,
+  bool sorted,
+  Status *ret_status
+);
 
+// functions around shutdown
 Status shutdown_server();
 Status shutdown_database(Db* db);
 

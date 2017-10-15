@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include "cs165_api.h"
 #define MAX_LINE_LEN 2048
 
@@ -40,7 +41,7 @@ FILE* read_tables(FILE* db_fp, Db* db, size_t t_size, Status* status) {
         // process line
         fgets(buffer, MAX_LINE_LEN, db_fp);
         sscanf(buffer, "%s %zu %zu %zu", table_name, &num_columns,
-               %table_size, &table_length);
+               &table_size, &table_length);
         // set the correct values for the table
         Table* new_table = create_table(db, table_name, num_columns, status);
         if (status->code != OK) {
@@ -79,15 +80,15 @@ Status db_startup() {
         StorageGroup* sgrouping = malloc(sizeof(StorageGroup) * stored_db.count_1);
         fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
         // save the tables
-        while (current_db.tables_size != stored_db.count_1) {
+        while (current_db->tables_size != stored_db.count_1) {
             // set the tables
-            StorageGroup* sg_ptr = sgrouping + current_db.tables_size;
+            StorageGroup* sg_ptr = sgrouping + current_db->tables_size;
             Table* tbl_ptr = create_table(
-                NULL,
+                current_db,
                 sg_ptr->name,
-                sg_ptr->count_1;
-                &startup_status,
-            )
+                sg_ptr->count_1,
+                &startup_status
+            );
             tbl_ptr->table_size = sg_ptr->count_2;
             tbl_ptr->table_length = sg_ptr->count_3;
         }
@@ -117,24 +118,24 @@ Status update_db_file() {
         return status;
     }
     // see if db exists and return (if not from load)
-    StorageGroup* sgrouping = NULL;
     while (db_ptr) {
-        // TODO: Write in bulk - malloc and free array
+        // write out the database object
+        StorageGroup db_store_obj;
+        db_store_obj.count_1 = db_ptr->tables_size;
+        db_store_obj.type = STORED_DB;
+        db_store_obj.count_2 = db_ptr->tables_capacity;
+        strcpy(db_store_obj.name, db_ptr->name);
+        fwrite(&db_store_obj, sizeof(StorageGroup), 1, db_fp);
+
         // TODO: Make sure that this values is not going to cause an overflow
-        sgrouping = malloc(sizeof(StorageGroup) * db_ptr->tables_size + 1);
+        // load the table into an object
+        StorageGroup* sgrouping = malloc(sizeof(StorageGroup) * db_ptr->tables_size);
         if (sgrouping == NULL) {
             status.code = ERROR;
             status.error_type = MEM_ALLOC_FAILED;
             return status;
         }
-        // load the table into an object
-        sgrouping[0].count_1 = db_ptr.tables_size;
-        sgrouping[0].type = STORED_DB;
-        sgrouping[0].count_2 = db_ptr.tables_capacity;
-        strcpy(sgrouping[0].name, db_ptr.name);
-
-        // flatten the table
-        for (size_t i = 0; i <= db_ptr->tables_size; i++) {
+        for (size_t i = 0; i < db_ptr->tables_size; i++) {
             Table* tbl_ptr = db_ptr->tables + i;
             // store the table
             sgrouping[i].type = STORED_TABLE;
@@ -143,8 +144,9 @@ Status update_db_file() {
             sgrouping[i].count_3 = tbl_ptr->table_length;
             strcpy(sgrouping[i].name, tbl_ptr->name);
         }
+
         // TODO: Add check for fwrite
-        fwrite(sgrouping, sizeof(StorageGroup), db_ptr->tables_size + 1, db_fp);
+        fwrite(sgrouping, sizeof(StorageGroup), db_ptr->tables_size, db_fp);
 
         // clean up and move to next database
         free(sgrouping);
@@ -158,7 +160,7 @@ int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
     return sprintf(fileoutname, "./database/%s.%s.txt", db_name, table_name);
 }
 
-int make_column_fname(char* db_name, char* table_name, char* col_name char* fileoutname) {
+int make_column_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
     return sprintf(fileoutname, "./database/%s.%s.%s.txt", db_name, table_name, col_name);
 }
 /**

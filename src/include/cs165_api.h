@@ -258,7 +258,7 @@ Status sync_db(Db* db);
 /**
  * HELPERS IN DBOPS files
  */
-Status add_db(const char* db_name, bool from_load, size_t size, size_t capacity);
+Status add_db(const char* db_name, bool from_load, size_t capacity);
 
 Table* create_table(
   Db* db,

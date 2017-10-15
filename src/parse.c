@@ -270,6 +270,13 @@ DbOperator* parse_insert(char* query_command, Status* status) {
     }
 }
 
+/* DbOperator* parse_load(char* query_command, Status* status) { */
+/*     char* token = NULL; */
+/*     if (strncmp(query_command, "(", 1) == 0) { */
+/*         token = next_token(&tokenizer_copy, &status->error_type); */
+/*     } */
+/* } */
+
 /**
  * parse_command takes as input:
  * - the send_message from the client and then parses it into the
@@ -324,6 +331,10 @@ DbOperator* parse_command(
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, &internal_status);
+        send_message->status = internal_status.error_type;
+    } else if (strncmp(query_command, "load", 4) == 0) {
+        query_command += 4;
+        dbo = parse_load(query_command, &internal_status);
         send_message->status = internal_status.error_type;
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         sync_db(current_db);

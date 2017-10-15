@@ -17,7 +17,7 @@ Db* db_head = NULL;
  * @param sorted - whether it is sorted
  * @param ret_status - status struct
  *
- * @return
+ * @return The created column
  */
 Column* create_column(char *name, Table* table, bool sorted, Status *ret_status) {
     // TODO: add in sorting ability
@@ -53,9 +53,16 @@ Column* create_column(char *name, Table* table, bool sorted, Status *ret_status)
     return new_col;
 }
 
-/*
- * Here you will create a table object. The Status object can be used to return
- * to the caller that there was an error in table creation
+/**
+ * @brief This function creates a table object. It will return the new table
+ *   and will update the return status
+ *
+ * @param db - Db* - database
+ * @param name - string of the name
+ * @param num_columns - size of the columns
+ * @param ret_status - status
+ *
+ * @return Table* - the new table
  */
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_status) {
     // add table to the array of tables in the db (realloc if needed)
@@ -102,7 +109,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
  * from disk, or one can divide the two into two different
  * methods.
  */
-Status add_db(const char* db_name, bool from_load) {
+Status add_db(const char* db_name, bool from_load, size_t capacity) {
     // TODO: use is_new flag to determine whether we need to create
     // also determine if we need to rewrite the files
     struct Status ret_status = { .code = OK };
@@ -133,7 +140,7 @@ Status add_db(const char* db_name, bool from_load) {
     strcpy(current_db->name, db_name);
     current_db->next_db = NULL;
     current_db->tables_size = 0;
-    current_db->tables_capacity = DEFAULT_TABLE_SIZE;
+    current_db->tables_capacity = capacity ? capacity : DEFAULT_TABLE_SIZE;
 
     // allocate table
     current_db->tables = malloc(current_db->tables_capacity * sizeof(Table));

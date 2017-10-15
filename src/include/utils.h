@@ -34,6 +34,9 @@ char* trim_whitespace(char *str);
 
 char* trim_quotes(char *str);
 
+// returns the next power of 2
+size_t npow2(size_t n);
+
 // cs165_log(out, format, ...)
 // Writes the string from @format to the @out pointer, extendable for
 // additional parameters.

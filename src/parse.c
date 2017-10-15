@@ -171,7 +171,7 @@ message_status parse_create_db(char* create_arguments) {
         if (token != NULL) {
             return INCORRECT_FORMAT;
         }
-        if (add_db(db_name, false).code == OK) {
+        if (add_db(db_name, false, 0, 0).code == OK) {
             return OK_DONE;
         } else {
             return EXECUTION_ERROR;
@@ -325,6 +325,9 @@ DbOperator* parse_command(
         query_command += 17;
         dbo = parse_insert(query_command, &internal_status);
         send_message->status = internal_status.error_type;
+    } else if (strncmp(query_command, "shutdown", 8) == 0) {
+        sync_db(current_db);
+        /* shutdown() */
     }
     // appropriately log errors
     if (internal_status.code == ERROR) {

@@ -34,8 +34,7 @@ char* trim_newline(char *str) {
  * Shifts characters over and shortens the length of
  * the string by the number of space characters.
  */
-char* trim_whitespace(char *str)
-{
+char* trim_whitespace(char *str) {
     int length = strlen(str);
     int current = 0;
     for (int i = 0; i < length; ++i) {
@@ -79,6 +78,23 @@ char* trim_quotes(char *str) {
     // Write new null terminator
     str[current] = '\0';
     return str;
+}
+
+/**
+ * @brief This function will return the next power of 2 given an input
+ *
+ * @param n - this is the number that we want to find the next largest instance
+ *
+ * @return size_t - next power of 2
+ */
+size_t npow2(size_t n) {
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    return n + 1;
 }
 
 /* The following three functions will show output on the terminal

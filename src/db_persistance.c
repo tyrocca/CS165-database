@@ -4,6 +4,20 @@
 #include "cs165_api.h"
 #define MAX_LINE_LEN 2048
 
+typedef enum StorageType {
+    STORED_DB = 1,
+    STORED_TABLE = 2,
+    STORED_COLUMN = 3,
+} StorageType;
+
+typedef struct StorageGroup {
+    char name[MAX_SIZE_NAME];
+    size_t count_1;
+    size_t count_2;
+    size_t count_3;
+    StorageType type;
+} StorageGroup;
+
 /**
  * @brief This function reads in the a line and creates the appropriate tables
  *
@@ -18,15 +32,22 @@ FILE* read_tables(FILE* db_fp, Db* db, size_t t_size, Status* status) {
     char buffer[MAX_LINE_LEN];
     char table_name[MAX_SIZE_NAME];
     size_t num_columns = 0;
+    size_t table_length = 0;
+    size_t table_size = 0;
     // read in lines
     size_t table_num = 0;
     while (status->code == OK && table_num < t_size) {
         // process line
         fgets(buffer, MAX_LINE_LEN, db_fp);
-        sscanf(buffer, "%s %zu", table_name, &num_columns);
-        // returns table
+        sscanf(buffer, "%s %zu %zu %zu", table_name, &num_columns,
+               %table_size, &table_length);
+        // set the correct values for the table
         Table* new_table = create_table(db, table_name, num_columns, status);
-        (void) new_table;
+        if (status->code != OK) {
+            return db_fp;
+        }
+        new_table->table_size = table_size;
+        new_table->table_length = table_length;
         // create_columns(table, num_columns, status)
         table_num++;
     }
@@ -42,23 +63,38 @@ FILE* read_tables(FILE* db_fp, Db* db, size_t t_size, Status* status) {
 Status db_startup() {
     Status startup_status = { .code = OK };
     // open file
-    FILE* db_fp = fopen("./database/database.txt", "r");
+    FILE* db_fp = fopen("./database/database.bin", "r");
     if (db_fp == NULL) {
         startup_status.code = ERROR;
         startup_status.error_type = FILE_NOT_FOUND;
         fclose(db_fp);
         return startup_status;
     }
-    char buffer[MAX_LINE_LEN];
-    while (startup_status.code == OK && fgets(buffer, MAX_LINE_LEN, db_fp)) {
-        char db_name[MAX_SIZE_NAME];
-        size_t tables_size;
-        sscanf(buffer, "%s %zu", db_name, &tables_size);
-        startup_status = add_db(db_name, true);
-        if (startup_status.code == OK) {
-            db_fp = read_tables(db_fp, current_db, tables_size, &startup_status);
+    // create a new storage group object
+    StorageGroup stored_db;
+    while (fread(&stored_db, sizeof(StorageGroup), 1, db_fp)) {
+        // load the database
+        startup_status = add_db(stored_db.name, true, stored_db.count_2);
+        // make space and load the tables
+        StorageGroup* sgrouping = malloc(sizeof(StorageGroup) * stored_db.count_1);
+        fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
+        // save the tables
+        while (current_db.tables_size != stored_db.count_1) {
+            // set the tables
+            StorageGroup* sg_ptr = sgrouping + current_db.tables_size;
+            Table* tbl_ptr = create_table(
+                NULL,
+                sg_ptr->name,
+                sg_ptr->count_1;
+                &startup_status,
+            )
+            tbl_ptr->table_size = sg_ptr->count_2;
+            tbl_ptr->table_length = sg_ptr->count_3;
         }
+        // free the read
+        free(sgrouping);
     }
+    // clean up open file pointer
     fclose(db_fp);
     return startup_status;
 }
@@ -73,7 +109,7 @@ Status update_db_file() {
     Db* db_ptr = db_head;
     Status status = { .code = OK };
     // open the file
-    FILE* db_fp = fopen("./database/database.txt", "w");
+    FILE* db_fp = fopen("./database/database.bin", "wb");
     if (db_fp == NULL) {
         status.code = ERROR;
         status.error_type = FILE_NOT_FOUND;
@@ -81,19 +117,49 @@ Status update_db_file() {
         return status;
     }
     // see if db exists and return (if not from load)
+    StorageGroup* sgrouping = NULL;
     while (db_ptr) {
-        fprintf(db_fp, "%s %zu\n", db_ptr->name, db_ptr->tables_size);
-        for (size_t i = 0; i < db_ptr->tables_size; i++) {
-            fprintf(db_fp, "%s %zu\n", db_ptr->tables[i].name, db_ptr->tables[i].col_count);
+        // TODO: Write in bulk - malloc and free array
+        // TODO: Make sure that this values is not going to cause an overflow
+        sgrouping = malloc(sizeof(StorageGroup) * db_ptr->tables_size + 1);
+        if (sgrouping == NULL) {
+            status.code = ERROR;
+            status.error_type = MEM_ALLOC_FAILED;
+            return status;
         }
+        // load the table into an object
+        sgrouping[0].count_1 = db_ptr.tables_size;
+        sgrouping[0].type = STORED_DB;
+        sgrouping[0].count_2 = db_ptr.tables_capacity;
+        strcpy(sgrouping[0].name, db_ptr.name);
+
+        // flatten the table
+        for (size_t i = 0; i <= db_ptr->tables_size; i++) {
+            Table* tbl_ptr = db_ptr->tables + i;
+            // store the table
+            sgrouping[i].type = STORED_TABLE;
+            sgrouping[i].count_1 = tbl_ptr->col_count;
+            sgrouping[i].count_2 = tbl_ptr->table_size;
+            sgrouping[i].count_3 = tbl_ptr->table_length;
+            strcpy(sgrouping[i].name, tbl_ptr->name);
+        }
+        // TODO: Add check for fwrite
+        fwrite(sgrouping, sizeof(StorageGroup), db_ptr->tables_size + 1, db_fp);
+
+        // clean up and move to next database
+        free(sgrouping);
         db_ptr = db_ptr->next_db;
     }
     fclose(db_fp);
     return status;
 }
 
-int file_name(Db* db, char* table_name, char** fileoutname) {
-    return sprintf(*fileoutname, "%s.%s.txt", db->name,
+int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
+    return sprintf(fileoutname, "./database/%s.%s.txt", db_name, table_name);
+}
+
+int make_column_fname(char* db_name, char* table_name, char* col_name char* fileoutname) {
+    return sprintf(fileoutname, "./database/%s.%s.%s.txt", db_name, table_name, col_name);
 }
 /**
  * sync_db(db)
@@ -108,12 +174,15 @@ Status sync_db(Db* db) {
         status.error_message = "Error updating the database file";
         return status;
     }
-    char table_fname[MAX_SIZE_NAME * 2 + 8];
-    for (size_t i = 0; i < db->tables_size; i++) {
-        file_name(db, table_name
-    }
-
-
-
+    /* char table_fname[MAX_SIZE_NAME * 2 + 8]; */
+    /* FILE* table_file = NULL; */
+    /* for (size_t i = 0; i < db->tables_size; i++) { */
+    /*     Table* tbl = db->tables[i]; */
+    /*     make_table_fname(db->name, tbl.name, table_fname); */
+    /*     table_file = fopen(table_fname, "w"); */
+    /*     fprintf(table_file, "OMG BECKYYYY -- %s\n", db->tables[i].name); */
+    /*     fclose(table_file); */
+    /* } */
+    return status;
 }
 

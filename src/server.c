@@ -39,7 +39,7 @@
  * @return Bool - if the database file exists
  */
 bool db_exists() {
-    return access("./database/database.txt", F_OK) != -1 ? true : false;
+    return access("./database/database.bin", F_OK) != -1 ? true : false;
 }
 
 /**
@@ -56,6 +56,7 @@ void handle_client(int client_socket) {
     if (db_exists()) {
         log_info("Database found... loading", client_socket);
         db_startup();
+        sync_db(current_db);
     }
 
     // Create two messages, one from which to read and one from which to receive

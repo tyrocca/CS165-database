@@ -72,16 +72,17 @@ typedef struct Column {
  *     name.
  * - col_count, the number of columns in the table
  * - columns this is the pointer to an array of columns contained in the table.
- * - table_length, the size of the columns in the table.
- * - table_size, the size of the table
+ * - table_size, the size of the table (how large columns are) (current size)
+ * - table_length, the size of the columns in the table (how much space in cols)
+ *      also could be called capacity
  **/
 
 typedef struct Table {
     char name[MAX_SIZE_NAME];
     Column *columns;
     size_t col_count;
-    size_t table_length;
     size_t table_size;
+    size_t table_length;
 } Table;
 
 /**
@@ -257,7 +258,7 @@ Status sync_db(Db* db);
 /**
  * HELPERS IN DBOPS files
  */
-Status add_db(const char* db_name, bool from_load);
+Status add_db(const char* db_name, bool from_load, size_t size, size_t capacity);
 
 Table* create_table(
   Db* db,

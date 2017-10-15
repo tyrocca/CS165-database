@@ -51,7 +51,7 @@ size_t next_table_idx(Table* table, Status* ret_status) {
 Db* get_valid_db(const char* db_name, Status* status) {
     // check that the database argument is the current active Database
     status->code = OK;
-    if (strcmp(current_db->name, db_name) != 0) {
+    if (!current_db || strcmp(current_db->name, db_name) != 0) {
         status->code = ERROR;
         status->error_type = OBJECT_NOT_FOUND;
         status->error_message = "Database name is not valid";

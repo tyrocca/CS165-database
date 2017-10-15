@@ -113,8 +113,9 @@ int main(void) {
 
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                if ((recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) &&
-                    (int) recv_message.length > 0) {
+                // TODO: why does this need ot check for the status
+                /* (recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) && */
+                if ((int) recv_message.length > 0) {
                     // Calculate number of bytes in response package
                     int num_bytes = (int) recv_message.length;
                     char payload[num_bytes + 1];
@@ -125,8 +126,7 @@ int main(void) {
                         printf("%s\n", payload);
                     }
                 }
-            }
-            else {
+            } else {
                 if (len < 0) {
                     log_err("Failed to receive message.");
                 }

@@ -203,6 +203,7 @@ typedef enum OperatorType {
     INSERT,
     SELECT,
     OPEN,
+    SHUTDOWN
 } OperatorType;
 /*
  * necessary fields for insertion

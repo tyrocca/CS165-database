@@ -337,9 +337,9 @@ DbOperator* parse_command(
         /* dbo = parse_load(query_command, &internal_status); */
         send_message->status = internal_status.error_type;
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
-        sync_db(current_db);
-
-        /* shutdown() */
+        dbo = malloc(sizeof(DbOperator));
+        dbo->type = SHUTDOWN;
+        send_message->status = OK_WAIT_FOR_RESPONSE;
     }
     // appropriately log errors
     if (internal_status.code == ERROR) {

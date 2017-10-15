@@ -34,6 +34,10 @@ char* execute_DbOperator(DbOperator* query) {
     }
     char* result = NULL;
     switch (query->type) {
+        case SHUTDOWN:
+            result = "Shutdown database";
+            shutdown_server();
+            break;
         case CREATE:
             result = "Created";
             break;

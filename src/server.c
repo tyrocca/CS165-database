@@ -56,7 +56,6 @@ void handle_client(int client_socket) {
     if (db_exists()) {
         log_info("Database found... loading", client_socket);
         db_startup();
-        sync_db(current_db);
     }
 
     // Create two messages, one from which to read and one from which to receive
@@ -101,6 +100,10 @@ void handle_client(int client_socket) {
             switch(send_message.status) {
                 case OK_DONE:
                 case OK_WAIT_FOR_RESPONSE:
+                    // TODO - make this shutdown work correctly
+                    if (query && query->type == SHUTDOWN) {
+                        done = 1;
+                    }
                     result = execute_DbOperator(query);
                     break;
                 default:
@@ -200,7 +203,6 @@ int main(void) {
     }
 
     handle_client(client_socket);
-
-
+    shutdown_server();
     return 0;
 }

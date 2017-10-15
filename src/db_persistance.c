@@ -243,7 +243,7 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
         char col_fname[MAX_SIZE_NAME * 3 + 8];
         Column* col = table->columns + i;
         StoredColumn sc = store_column(col);
-        fwrite(&sc, sizeof(StorageGroup), 1, table_file);
+        fwrite(&sc, sizeof(StoredColumn), 1, table_file);
         // dump the column
         make_column_fname(db->name, table->name, col->name, col_fname);
         dump_column(col_fname, col, table->table_size, &status);
@@ -354,7 +354,7 @@ void free_table(Table* table) {
 /**
  * @brief This function is for shutting down the database
  *
- * @param db
+ * @param db - the database to shutdown
  *
  * @return
  */
@@ -377,7 +377,18 @@ void shutdown_database(Db* db) {
     free(db);
 }
 
-// TODO: load
-void load_file() {}
-
+/**
+ * @brief This function goes over all of the databases saves them and then
+ *  frees them
+ *
+ * @return status
+ */
+Status shutdown_server() {
+    Status status = { .code = OK };
+    while (status.code != ERROR && db_head) {
+        status = sync_db(db_head);
+        shutdown_database(db_head);
+    }
+    return status;
+}
 

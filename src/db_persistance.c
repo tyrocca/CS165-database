@@ -20,6 +20,7 @@ typedef struct StorageGroup {
     StorageType type;
 } StorageGroup;
 
+// this is used for storing columns
 typedef struct StoredColumn {
     char name[MAX_SIZE_NAME];
     bool clustered;
@@ -39,7 +40,7 @@ int make_column_fname(char* db_name, char* table_name, char* col_name, char* fil
 ///////////////////////
 
 /**
- * @brief This functoin takes in a loaded storage group and updates the status
+ * @brief This function takes in a loaded storage group and updates the status
  *
  * @param sg_ptr
  * @param status
@@ -51,8 +52,47 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         sg_ptr->count_1,
         status
     );
+    if (status->code == ERROR) {
+        return;
+    }
     tbl_ptr->table_size = sg_ptr->count_2;
     tbl_ptr->table_length = sg_ptr->count_3;
+
+    // load the column file
+    StoredColumn* scolumns = malloc(sizeof(StoredColumn) * tbl_ptr->col_count);
+    char table_fname[MAX_SIZE_NAME * 2 + 8];
+    make_table_fname(current_db->name, tbl_ptr->name, table_fname);
+    FILE* table_file = fopen(table_fname, "rb");
+    if (table_file == NULL || scolumns == NULL) {
+        status->code = ERROR;
+        return;
+    }
+    fread(scolumns, sizeof(StoredColumn), tbl_ptr->col_count, table_file);
+
+    // load in the columns
+    for (size_t i = 0; status->code != ERROR && i < tbl_ptr->col_count; i++) {
+        char col_fname[MAX_SIZE_NAME * 3 + 8];
+        Column* col = tbl_ptr->columns + i;
+        strcpy(col->name, scolumns[i].name);
+        // load if data was allocated
+        col->data = malloc(tbl_ptr->table_length * sizeof(int));
+        if (col->data == NULL) {
+            status->code = ERROR;
+            status->error_type = MEM_ALLOC_FAILED;
+            fclose(table_file);
+            return;
+        }
+        // set up the data
+        make_column_fname(current_db->name, tbl_ptr->name, col->name, col_fname);
+        FILE* col_file = fopen(col_fname, "rb");
+        if (col_file == NULL) {
+            status->code = ERROR;
+            status->error_type = MEM_ALLOC_FAILED;
+            return;
+        }
+        fread(col->data, sizeof(int), tbl_ptr->table_size, col_file);
+    }
+    fclose(table_file);
 }
 
 /**
@@ -86,7 +126,7 @@ Status db_startup() {
         }
         fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
         // process the tables
-        while (startup_status->code != ERROR && current_db->tables_size != stored_db.count_1) {
+        while (startup_status.code != ERROR && current_db->tables_size != stored_db.count_1) {
             load_table(sgrouping + current_db->tables_size, &startup_status);
         }
         // free at finish
@@ -180,8 +220,8 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
         status.error_type = FILE_NOT_FOUND;
         return status;
     }
-    char col_fname[MAX_SIZE_NAME * 3 + 8];
     for (size_t i = 0; status.code != ERROR && i < table->col_count; i++) {
+        char col_fname[MAX_SIZE_NAME * 3 + 8];
         Column* col = table->columns + i;
         StoredColumn sc = store_column(col);
         fwrite(&sc, sizeof(StorageGroup), 1, table_file);
@@ -257,8 +297,8 @@ Status sync_db(Db* db) {
         return status;
     }
     // store the database
-    char table_fname[MAX_SIZE_NAME * 2 + 8];
     for (size_t i = 0; status.code != ERROR && i < db->tables_size; i++) {
+        char table_fname[MAX_SIZE_NAME * 2 + 8];
         Table* table = db->tables + i;
         make_table_fname(db->name, table->name, table_fname);
         status = dump_db_table(table_fname, db, table);

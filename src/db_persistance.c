@@ -26,14 +26,32 @@ typedef struct StoredColumn {
     bool clustered;
 } StoredColumn;
 
+/**
+ * @brief This function generates the table file name
+ *
+ * @param db_name - Char*
+ * @param table_name - Char* table name
+ * @param fileoutname - Char* this is the file
+ *
+ * @return
+ */
 int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
     return sprintf(fileoutname, "./database/%s.%s.bin", db_name, table_name);
 }
 
+/**
+ * @brief This function makes the binary file name for the column
+ *
+ * @param db_name - this is the db name (char*)
+ * @param table_name - this is the table name (char*)
+ * @param col_name - this is the col name
+ * @param fileoutname - this is where it all gets returned
+ *
+ * @return
+ */
 int make_column_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
     return sprintf(fileoutname, "./database/%s.%s.%s.bin", db_name, table_name, col_name);
 }
-
 
 ///////////////////////
 // LOADING FUNCTIONS //
@@ -306,3 +324,6 @@ Status sync_db(Db* db) {
     return status;
 }
 
+void load_file() {
+
+}

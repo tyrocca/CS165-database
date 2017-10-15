@@ -128,8 +128,8 @@ Status add_db(const char* db_name, bool from_load, size_t capacity) {
 
     // If we get here we have a new database so we should
     // enter into the next cycle
-    current_db = malloc(sizeof(Db));
-    if (!current_db) {
+    db_ptr = malloc(sizeof(Db));
+    if (!db_ptr) {
         ret_status.code = ERROR;
         ret_status.error_type = MEM_ALLOC_FAILED;
         ret_status.error_message = "Could not allocate space for DB";
@@ -137,22 +137,27 @@ Status add_db(const char* db_name, bool from_load, size_t capacity) {
     }
 
     // initialize DB and allocate space for the tables
-    strcpy(current_db->name, db_name);
-    current_db->next_db = NULL;
-    current_db->tables_size = 0;
-    current_db->tables_capacity = capacity ? capacity : DEFAULT_TABLE_SIZE;
+    strcpy(db_ptr->name, db_name);
+    db_ptr->next_db = NULL;
+    db_ptr->tables_size = 0;
+    db_ptr->tables_capacity = capacity ? capacity : DEFAULT_TABLE_SIZE;
 
     // allocate table
-    current_db->tables = malloc(current_db->tables_capacity * sizeof(Table));
-    if (current_db->tables == NULL) {
+    db_ptr->tables = malloc(db_ptr->tables_capacity * sizeof(Table));
+    if (db_ptr->tables == NULL) {
         ret_status.code = ERROR;
         ret_status.error_type = MEM_ALLOC_FAILED;
         ret_status.error_message = "Could not allocate space for tables";
     }
 
-    // set the head of the list
+    // set the head of the list - or update the chain of dbs
     if (!db_head) {
-        db_head = current_db;
+        db_head = db_ptr;
+        db_ptr->previous_db = NULL;
+    } else {
+        current_db->next_db = db_ptr;
+        db_ptr->previous_db = current_db;
     }
+    current_db = db_ptr;
     return ret_status;
 }

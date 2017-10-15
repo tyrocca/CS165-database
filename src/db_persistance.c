@@ -110,6 +110,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         }
         fread(col->data, sizeof(int), tbl_ptr->table_size, col_file);
     }
+    free(scolumns);
     fclose(table_file);
 }
 
@@ -324,6 +325,59 @@ Status sync_db(Db* db) {
     return status;
 }
 
-void load_file() {
+////////////////////////
+// Clean up functions //
+////////////////////////
 
+/**
+ * @brief this frees a column and all of its dependancies
+ *
+ * @param column - Column* - free column parts
+ */
+void free_column(Column* column) {
+    free(column->data);
 }
+
+/**
+ * @brief Function frees all of the subcomponents of a table
+ *
+ * @param table
+ */
+void free_table(Table* table) {
+    // cleanup all nested components
+    for (size_t i = 0; i < table->col_count; i++) {
+        free_column(table->columns + i);
+    }
+    free(table->columns);
+}
+
+/**
+ * @brief This function is for shutting down the database
+ *
+ * @param db
+ *
+ * @return
+ */
+void shutdown_database(Db* db) {
+    for (size_t i = 0; i < db->tables_size; i++) {
+        free_table(db->tables + i);
+    }
+    free(db->tables);
+    // update the database's location
+    if (db->previous_db) {
+        // if we have a previous, set its next to the current next
+        db->previous_db->next_db = db->next_db;
+    } else {
+        db_head = db->next_db;
+    }
+    // if we have a next, set its next's previous to the current prev
+    if (db->next_db) {
+        db->next_db->previous_db = db->previous_db;
+    }
+    free(db);
+}
+
+// TODO: load
+void load_file() {}
+
+

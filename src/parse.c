@@ -334,10 +334,11 @@ DbOperator* parse_command(
         send_message->status = internal_status.error_type;
     } else if (strncmp(query_command, "load", 4) == 0) {
         query_command += 4;
-        dbo = parse_load(query_command, &internal_status);
+        /* dbo = parse_load(query_command, &internal_status); */
         send_message->status = internal_status.error_type;
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         sync_db(current_db);
+
         /* shutdown() */
     }
     // appropriately log errors

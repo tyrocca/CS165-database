@@ -101,6 +101,7 @@ typedef struct Db {
     size_t tables_size;
     size_t tables_capacity;
     struct Db* next_db;
+    struct Db* previous_db;
 } Db;
 
 /**
@@ -276,7 +277,8 @@ Column* create_column(
 
 // functions around shutdown
 Status shutdown_server();
-Status shutdown_database(Db* db);
+// was status...
+void shutdown_database(Db* db);
 
 char** execute_db_operator(DbOperator* query);
 void db_operator_free(DbOperator* query);

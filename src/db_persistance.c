@@ -5,12 +5,13 @@
 #include "cs165_api.h"
 #define MAX_LINE_LEN 2048
 
+// This is used for the storage
 typedef enum StorageType {
     STORED_DB = 1,
     STORED_TABLE = 2,
-    STORED_COLUMN = 3,
 } StorageType;
 
+// this is used for the storage group
 typedef struct StorageGroup {
     char name[MAX_SIZE_NAME];
     size_t count_1;
@@ -19,40 +20,39 @@ typedef struct StorageGroup {
     StorageType type;
 } StorageGroup;
 
+typedef struct StoredColumn {
+    char name[MAX_SIZE_NAME];
+    bool clustered;
+} StoredColumn;
+
+int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
+    return sprintf(fileoutname, "./database/%s.%s.bin", db_name, table_name);
+}
+
+int make_column_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
+    return sprintf(fileoutname, "./database/%s.%s.%s.bin", db_name, table_name, col_name);
+}
+
+
+///////////////////////
+// LOADING FUNCTIONS //
+///////////////////////
+
 /**
- * @brief This function reads in the a line and creates the appropriate tables
+ * @brief This functoin takes in a loaded storage group and updates the status
  *
- * @param db_fp - file pointer to db
- * @param db - database object
- * @param t_size - tables size
- * @param status - status of the operation
- *
- * @return
+ * @param sg_ptr
+ * @param status
  */
-FILE* read_tables(FILE* db_fp, Db* db, size_t t_size, Status* status) {
-    char buffer[MAX_LINE_LEN];
-    char table_name[MAX_SIZE_NAME];
-    size_t num_columns = 0;
-    size_t table_length = 0;
-    size_t table_size = 0;
-    // read in lines
-    size_t table_num = 0;
-    while (status->code == OK && table_num < t_size) {
-        // process line
-        fgets(buffer, MAX_LINE_LEN, db_fp);
-        sscanf(buffer, "%s %zu %zu %zu", table_name, &num_columns,
-               &table_size, &table_length);
-        // set the correct values for the table
-        Table* new_table = create_table(db, table_name, num_columns, status);
-        if (status->code != OK) {
-            return db_fp;
-        }
-        new_table->table_size = table_size;
-        new_table->table_length = table_length;
-        // create_columns(table, num_columns, status)
-        table_num++;
-    }
-    return db_fp;
+void load_table(StorageGroup* sg_ptr, Status* status) {
+    Table* tbl_ptr = create_table(
+        current_db,
+        sg_ptr->name,
+        sg_ptr->count_1,
+        status
+    );
+    tbl_ptr->table_size = sg_ptr->count_2;
+    tbl_ptr->table_length = sg_ptr->count_3;
 }
 
 /**
@@ -71,44 +71,119 @@ Status db_startup() {
         fclose(db_fp);
         return startup_status;
     }
+
     // create a new storage group object
     StorageGroup stored_db;
-    while (fread(&stored_db, sizeof(StorageGroup), 1, db_fp)) {
+    while (startup_status.code != ERROR && fread(&stored_db, sizeof(StorageGroup), 1, db_fp)) {
         // load the database
         startup_status = add_db(stored_db.name, true, stored_db.count_2);
-        // make space and load the tables
+        // make space and read the tables
         StorageGroup* sgrouping = malloc(sizeof(StorageGroup) * stored_db.count_1);
-        fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
-        // save the tables
-        while (current_db->tables_size != stored_db.count_1) {
-            // set the tables
-            StorageGroup* sg_ptr = sgrouping + current_db->tables_size;
-            Table* tbl_ptr = create_table(
-                current_db,
-                sg_ptr->name,
-                sg_ptr->count_1,
-                &startup_status
-            );
-            tbl_ptr->table_size = sg_ptr->count_2;
-            tbl_ptr->table_length = sg_ptr->count_3;
+        if (sgrouping == NULL) {
+            startup_status.code = ERROR;
+            startup_status.error_type = MEM_ALLOC_FAILED;
+            return startup_status;
         }
-        // free the read
+        fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
+        // process the tables
+        while (current_db->tables_size != stored_db.count_1) {
+            load_table(sgrouping + current_db->tables_size, &startup_status);
+        }
+        // free at finish
         free(sgrouping);
     }
+
     // clean up open file pointer
     fclose(db_fp);
     return startup_status;
 }
 
+///////////////////////
+// STORAGE FUNCTIONS //
+///////////////////////
+
 /**
- * @brief This function will update the database.txt file with all of the
- *   databases in the system
+ * @brief This function takes a column and reformats it to be stored
+ *
+ * @param column - Column*
+ * @return StoredColumn
+ */
+StoredColumn store_column(Column* column) {
+    StoredColumn sc;
+    strcpy(sc.name, column->name);
+    return sc;
+}
+
+/**
+ * @brief This function takes a table and reformats it to be stored
+ *
+ * @param table - table*
+ * @param sg - StorageGroup*
+ */
+void store_table(Table* table, StorageGroup* sg) {
+    // store the table
+    sg->type = STORED_TABLE;
+    sg->count_1 = table->col_count;
+    sg->count_2 = table->table_size;
+    sg->count_3 = table->table_length;
+    strcpy(sg->name, table->name);
+}
+
+/**
+ * @brief This function takes in a database and formats it into a storage obj
+ *
+ * @param db_ptr - pointer to database
+ * @return StorageGroup object
+ */
+StorageGroup store_db(Db* db_ptr) {
+    StorageGroup sg;
+    sg.type = STORED_DB;
+    sg.count_1 = db_ptr->tables_size;
+    sg.count_2 = db_ptr->tables_capacity;
+    strcpy(sg.name, db_ptr->name);
+    return sg;
+}
+
+/**
+ * @brief This function takes a table and dumps it to a file
+ *
+ * @param fname - file name
+ * @param table - the pointer to the Table
+ *
+ * @return status
+ */
+Status dump_db_table(const char* fname, Db* db, Table* table) {
+    Status status = { .code = OK };
+    FILE* table_file = fopen(fname, "wb");
+    if (table_file == NULL) {
+        status.code = ERROR;
+        status.error_type = FILE_NOT_FOUND;
+        return status;
+    }
+    char col_fname[MAX_SIZE_NAME * 3 + 8];
+    for (size_t i = 0; status.code != ERROR && i < table->col_count; i++) {
+        Column* col = table->columns + i;
+        StoredColumn sc = store_column(col);
+        fwrite(&sc, sizeof(StorageGroup), 1, table_file);
+        // dump the column
+        make_column_fname(db->name, table->name, col->name, col_fname);
+        store_column_data(table->columns);
+    }
+    fclose(table_file);
+    return status;
+}
+
+
+/**
+ * @brief This function will update the database.bin file with all of the
+ *   databases and tables in the system
  *
  * @return status of the update
  */
-Status update_db_file() {
+Status dump_databases() {
     Db* db_ptr = db_head;
     Status status = { .code = OK };
+
     // open the file
     FILE* db_fp = fopen("./database/database.bin", "wb");
     if (db_fp == NULL) {
@@ -117,14 +192,11 @@ Status update_db_file() {
         fclose(db_fp);
         return status;
     }
+
     // see if db exists and return (if not from load)
     while (db_ptr) {
         // write out the database object
-        StorageGroup db_store_obj;
-        db_store_obj.count_1 = db_ptr->tables_size;
-        db_store_obj.type = STORED_DB;
-        db_store_obj.count_2 = db_ptr->tables_capacity;
-        strcpy(db_store_obj.name, db_ptr->name);
+        StorageGroup db_store_obj = store_db(db_ptr);
         fwrite(&db_store_obj, sizeof(StorageGroup), 1, db_fp);
 
         // TODO: Make sure that this values is not going to cause an overflow
@@ -136,13 +208,7 @@ Status update_db_file() {
             return status;
         }
         for (size_t i = 0; i < db_ptr->tables_size; i++) {
-            Table* tbl_ptr = db_ptr->tables + i;
-            // store the table
-            sgrouping[i].type = STORED_TABLE;
-            sgrouping[i].count_1 = tbl_ptr->col_count;
-            sgrouping[i].count_2 = tbl_ptr->table_size;
-            sgrouping[i].count_3 = tbl_ptr->table_length;
-            strcpy(sgrouping[i].name, tbl_ptr->name);
+            store_table(db_ptr->tables + i, sgrouping + i);
         }
 
         // TODO: Add check for fwrite
@@ -156,13 +222,6 @@ Status update_db_file() {
     return status;
 }
 
-int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
-    return sprintf(fileoutname, "./database/%s.%s.txt", db_name, table_name);
-}
-
-int make_column_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
-    return sprintf(fileoutname, "./database/%s.%s.%s.txt", db_name, table_name, col_name);
-}
 /**
  * sync_db(db)
  * Saves the current status of the database to disk.
@@ -171,20 +230,19 @@ int make_column_fname(char* db_name, char* table_name, char* col_name, char* fil
  * returns  : the status of the operation.
  **/
 Status sync_db(Db* db) {
-    Status status = update_db_file();
+    // first store the databases and their tables
+    Status status = dump_databases();
     if (status.code == ERROR) {
         status.error_message = "Error updating the database file";
         return status;
     }
-    /* char table_fname[MAX_SIZE_NAME * 2 + 8]; */
-    /* FILE* table_file = NULL; */
-    /* for (size_t i = 0; i < db->tables_size; i++) { */
-    /*     Table* tbl = db->tables[i]; */
-    /*     make_table_fname(db->name, tbl.name, table_fname); */
-    /*     table_file = fopen(table_fname, "w"); */
-    /*     fprintf(table_file, "OMG BECKYYYY -- %s\n", db->tables[i].name); */
-    /*     fclose(table_file); */
-    /* } */
+    // store the database
+    char table_fname[MAX_SIZE_NAME * 2 + 8];
+    for (size_t i = 0; status.code != ERROR && i < db->tables_size; i++) {
+        Table* table = db->tables + i;
+        make_table_fname(db->name, table->name, table_fname);
+        status = dump_db_table(table_fname, db, table);
+    }
     return status;
 }
 

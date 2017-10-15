@@ -86,7 +86,7 @@ Status db_startup() {
         }
         fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
         // process the tables
-        while (current_db->tables_size != stored_db.count_1) {
+        while (startup_status->code != ERROR && current_db->tables_size != stored_db.count_1) {
             load_table(sgrouping + current_db->tables_size, &startup_status);
         }
         // free at finish
@@ -145,6 +145,26 @@ StorageGroup store_db(Db* db_ptr) {
 }
 
 /**
+ * @brief This function takes a column and a file name and dumps the column
+ *
+ * @param fname
+ * @param col
+ * @param data_len length of the data
+ * @param status
+ *
+ */
+void dump_column(const char* fname, Column* col, size_t data_len, Status* status) {
+    FILE* col_file = fopen(fname, "wb");
+    if (col_file == NULL) {
+        status->code = ERROR;
+        status->error_type = FILE_NOT_FOUND;
+        return;
+    }
+    fwrite(col->data, sizeof(int), data_len, col_file);
+    fclose(col_file);
+}
+
+/**
  * @brief This function takes a table and dumps it to a file
  *
  * @param fname - file name
@@ -167,7 +187,7 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
         fwrite(&sc, sizeof(StorageGroup), 1, table_file);
         // dump the column
         make_column_fname(db->name, table->name, col->name, col_fname);
-        store_column_data(table->columns);
+        dump_column(col_fname, col, table->table_size, &status);
     }
     fclose(table_file);
     return status;

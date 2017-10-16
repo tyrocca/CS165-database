@@ -56,10 +56,6 @@ char* next_db_field(char** tokenizer, message_status* status) {
     return get_next_token(tokenizer, status, ".");
 }
 
-
-
-
-
 // TODO: see if this is helpful and switch to using this for parsing
 typedef struct NameLookup {
     char db_name[MAX_SIZE_NAME];
@@ -82,13 +78,13 @@ typedef enum LookupType {
  * @param lookup_type
  * @param struct_type
  */
-void* process_lookup(char** string, LookupType struct_type, Status* status) {
+void* process_lookup(const char* string, LookupType struct_type, Status* status) {
     NameLookup lookup = { "", "", "" };
-    strcpy(lookup.db_name, next_db_field(string, &status->error_type));
+    sscanf(string, "%[^.,\n].%[^.,\n].%[^.,\n]",
+           lookup.db_name, lookup.table_name, lookup.column_name);
     if (struct_type == DB_LOOKUP) {
         return (void *) get_valid_db(lookup.db_name, status);
     }
-    strcpy(lookup.table_name, next_db_field(string, &status->error_type));
     if (struct_type == TABLE_LOOKUP) {
         return (void *) get_table_from_db(
             lookup.db_name,
@@ -96,7 +92,6 @@ void* process_lookup(char** string, LookupType struct_type, Status* status) {
             status
         );
     }
-    strcpy(lookup.table_name, next_db_field(string, &status->error_type));
     return (void *) get_column_from_db(
         lookup.db_name,
         lookup.table_name,
@@ -418,8 +413,7 @@ void parse_load(char* query_command, Status* status) {
     char csv_line[DEFAULT_READ_SIZE];
     // TODO: edge case - table columns are not in order...
     fgets(csv_line, DEFAULT_READ_SIZE, load_file);
-    char* read_ptr = csv_line;
-    Table* table = (Table*) process_lookup(&read_ptr, TABLE_LOOKUP, status);
+    Table* table = (Table*) process_lookup(csv_line, TABLE_LOOKUP, status);
     if (!table) {
         fclose(load_file);
         return;
@@ -430,9 +424,9 @@ void parse_load(char* query_command, Status* status) {
 
     // TODO: edge case - the file is super wide
     // We know the max width is col_count
-    char* token = NULL;
     while (fgets(csv_line, DEFAULT_READ_SIZE, load_file)) {
-        read_ptr = csv_line;
+        char* token = NULL;
+        char* read_ptr = csv_line;
         size_t data_idx = next_table_idx(table, status);
         size_t col_idx = 0;
         while ((token = strsep(&read_ptr, ",")) != NULL && col_idx < table->col_count) {

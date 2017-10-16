@@ -10,9 +10,7 @@ typedef enum message_status {
     QUERY_UNSUPPORTED,
     OBJECT_ALREADY_EXISTS,
     OBJECT_NOT_FOUND,
-    // TODO: Added by Ty
     MEM_ALLOC_FAILED,
-    // END ADDED By Ty
     INCORRECT_FORMAT,
     EXECUTION_ERROR,
     INCORRECT_FILE_FORMAT,

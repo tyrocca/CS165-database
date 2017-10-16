@@ -32,11 +32,11 @@ size_t next_table_idx(Table* table, Status* ret_status) {
                 ret_status->error_message = "Could not reallocate new data";
             }
             table->columns[idx].data = tmp;
+            idx++;
         }
     }
     // increase size and return previous value
-    table->table_size++;
-    return table->table_size - 1;
+    return table->table_size++;
 }
 
 /**

@@ -1,12 +1,14 @@
 #include "db_operations.h"
 #include "client_context.h"
 
-char* process_open(OpenOperator open_op, Status* status) {
-    (void) open_op;
-    (void) status;
-    return "";
-}
-
+/**
+ * @brief This function does the insert operation on the table
+ *
+ * @param insert_op InsertOperator
+ * @param status Status - used for maintaining status
+ *
+ * @return string
+ */
 char* process_insert(InsertOperator insert_op, Status* status) {
     size_t row_idx = next_table_idx(insert_op.table, status);
     if (status->code != OK) {
@@ -16,7 +18,22 @@ char* process_insert(InsertOperator insert_op, Status* status) {
     for(size_t idx = 0; idx < insert_op.table->col_count; idx++) {
         insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
     }
-    return "Success - values inserted";
+    return "Success! Values inserted.";
+}
+
+/**
+ * @brief This function opens a file and loads it into the system
+ *
+ * @param open_op - OpenOperator
+ * @param status - Status
+ *
+ * @return
+ */
+char* process_open(OpenOperator open_op, Status* status) {
+    // TODO: implement process open
+    (void) open_op;
+    (void) status;
+    return NULL;
 }
 
 /**

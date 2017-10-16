@@ -110,11 +110,8 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
  * methods.
  */
 Status add_db(const char* db_name, bool from_load, size_t capacity) {
-    // TODO: use is_new flag to determine whether we need to create
-    // also determine if we need to rewrite the files
     struct Status ret_status = { .code = OK };
     Db* db_ptr = db_head;
-
     // see if db exists and return (if not from load)
     if (from_load == false) {
         while (db_ptr && db_ptr->next_db) {
@@ -125,7 +122,6 @@ Status add_db(const char* db_name, bool from_load, size_t capacity) {
             db_ptr = db_ptr->next_db;
         }
     }
-
     // If we get here we have a new database so we should
     // enter into the next cycle
     db_ptr = malloc(sizeof(Db));

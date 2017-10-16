@@ -32,6 +32,7 @@ SOFTWARE.
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
+#define DEFAULT_READ_SIZE 4096
 
 /**
  * EXTRA
@@ -173,6 +174,7 @@ typedef struct GeneralizedColumnHandle {
     char name[HANDLE_MAX_SIZE];
     GeneralizedColumn generalized_column;
 } GeneralizedColumnHandle;
+
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */

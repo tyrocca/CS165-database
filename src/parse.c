@@ -11,20 +11,27 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <ctype.h>
+#include <assert.h>
 #include "cs165_api.h"
 #include "parse.h"
 #include "utils.h"
 #include "client_context.h"
 
+
 /**
- * Takes a pointer to a string.
- * This method returns the original string truncated
- * to where its first comma lies.
- * In addition, the original string now points to the
- * first character after that comma.
- * This method destroys its input.
- **/
+ * @brief Takes a pointer to a string.  This method returns the original
+ * string truncated to where its first comma lies.
+ * In addition, the original string now points to the first character after
+ * that comma.  This method destroys its input.
+ *
+ * @param tokenizer
+ * @param status
+ * @param split
+ *
+ * @return
+ */
 char* get_next_token(char** tokenizer, message_status* status, char* split) {
     char* token = strsep(tokenizer, split);
     if (token == NULL) {
@@ -37,27 +44,120 @@ char* next_token(char** tokenizer, message_status* status) {
     return get_next_token(tokenizer, status, ",");
 }
 
+/**
+ * @brief function that splits the field and returns the next . separated field
+ *
+ * @param tokenizer
+ * @param status
+ *
+ * @return char* - string of next field
+ */
 char* next_db_field(char** tokenizer, message_status* status) {
     return get_next_token(tokenizer, status, ".");
 }
+
+
+
+
+
+// TODO: see if this is helpful and switch to using this for parsing
+typedef struct NameLookup {
+    char db_name[MAX_SIZE_NAME];
+    char table_name[MAX_SIZE_NAME];
+    char column_name[MAX_SIZE_NAME];
+} NameLookup;
+
+typedef enum LookupType {
+    DB_LOOKUP,
+    TABLE_LOOKUP,
+    COLUMN_LOOKUP
+} LookupType;
+
+/**
+ * @brief This function takes in a string and updates the lookup
+ *   TODO: make this capable of looking up a string in a hashtable
+ *
+ *
+ * @param string
+ * @param lookup_type
+ * @param struct_type
+ */
+void* process_lookup(char** string, LookupType struct_type, Status* status) {
+    NameLookup lookup = { "", "", "" };
+    strcpy(lookup.db_name, next_db_field(string, &status->error_type));
+    if (struct_type == DB_LOOKUP) {
+        return (void *) get_valid_db(lookup.db_name, status);
+    }
+    strcpy(lookup.table_name, next_db_field(string, &status->error_type));
+    if (struct_type == TABLE_LOOKUP) {
+        return (void *) get_table_from_db(
+            lookup.db_name,
+            lookup.table_name,
+            status
+        );
+    }
+    strcpy(lookup.table_name, next_db_field(string, &status->error_type));
+    return (void *) get_column_from_db(
+        lookup.db_name,
+        lookup.table_name,
+        lookup.column_name,
+        status
+    );
+}
+
+/**
+ * @brief Function that looks up a database struct and returns it if found
+ * TODO: use this
+ *
+ * @param lookup
+ * @param struct_type
+ *
+ * @return
+ */
+void* lookup_struct(NameLookup* lookup, LookupType struct_type) {
+    Status foo;
+    switch (struct_type) {
+        case DB_LOOKUP:
+            return (void *) get_valid_db(lookup->db_name, &foo);
+        case TABLE_LOOKUP:
+            return (void *) get_table_from_db(
+                lookup->db_name,
+                lookup->table_name,
+                &foo
+            );
+        case COLUMN_LOOKUP:
+            return (void *) get_column_from_db(
+                lookup->db_name,
+                lookup->table_name,
+                lookup->column_name,
+                &foo
+            );
+        default:
+            return NULL;
+    }
+}
+
+
 
 /**
  * @brief this function takes in the argument string for the creation
  * of columns and will create that new column. it will return a status
  * create(col,"project",awesomebase.grades)
+ *
  * TODO: Make it so that this parses sorted status
  *
  * @param create_arguments - this is a string that looks like
- *   this "project", awesomebase.grades)
+ *  this "project", awesomebase.grades)
  *
  * @return message status
  */
 void parse_create_col(char* create_arguments, Status* status) {
     char** create_arguments_index = &create_arguments;
     char* column_name = next_token(create_arguments_index, &status->error_type);
+    // todo - use the lookup thing here
     char* db_name = next_db_field(create_arguments_index, &status->error_type);
     char* table_name = next_token(create_arguments_index, &status->error_type);
-    // TODO
+    // TODO - enable sorting
     bool sorted = false;
 
     // not enough arguments
@@ -74,22 +174,24 @@ void parse_create_col(char* create_arguments, Status* status) {
         status->error_message = "Create Col does doesn't end with )";
         return;
     }
-
     // replace final ')' with null-termination character.
     table_name[last_char] = '\0';
-
     Table* tbl = get_table_from_db(db_name, table_name, status);
     if (tbl) {
         create_column(column_name, tbl, sorted, status);
     }
 }
 
-
 /**
- * This method takes in a string representing the arguments to create a table.
- * It parses those arguments, checks that they are valid, and creates a table.
+ * @brief This method takes in a string representing the arguments to create a
+ * table. It parses those arguments, checks that they are valid, and
+ * creates a table.
  * TODO: determine what to do about status here
- **/
+ *
+ * @param create_arguments
+ *
+ * @return
+ */
 message_status parse_create_tbl(char* create_arguments) {
     message_status status = OK_DONE;
     char** create_arguments_index = &create_arguments;
@@ -145,10 +247,14 @@ message_status parse_create_tbl(char* create_arguments) {
 }
 
 /**
- * This method takes in a string representing the arguments to create a database.
- * It parses those arguments, checks that they are valid, and creates a database.
- **/
-
+ * @brief This method takes in a string representing the arguments to create
+ * a database. It parses those arguments, checks that they are valid,
+ * and creates a database.
+ *
+ * @param create_arguments - char*
+ *
+ * @return message_status
+ */
 message_status parse_create_db(char* create_arguments) {
     char *token;
     token = strsep(&create_arguments, ",");
@@ -181,9 +287,14 @@ message_status parse_create_db(char* create_arguments) {
 
 
 /**
- * parse_create parses a create statement and then passes the necessary
+ * @brief parse_create parses a create statement and then passes the necessary
  * arguments off to the next function
- **/
+ *
+ * @param create_arguments
+ * @param status
+ *
+ * @return message_status
+ */
 message_status parse_create(char* create_arguments, Status* status) {
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input.
@@ -220,9 +331,14 @@ message_status parse_create(char* create_arguments, Status* status) {
 
 
 /**
- * parse_insert reads in the arguments for a create statement and
+ * @brief parse_insert reads in the arguments for a create statement and
  * then passes these arguments to a database function to insert a row.
- **/
+ *
+ * @param query_command
+ * @param status
+ *
+ * @return
+ */
 DbOperator* parse_insert(char* query_command, Status* status) {
     unsigned int columns_inserted = 0;
     char* token = NULL;
@@ -270,12 +386,62 @@ DbOperator* parse_insert(char* query_command, Status* status) {
     }
 }
 
-/* DbOperator* parse_load(char* query_command, Status* status) { */
-/*     char* token = NULL; */
-/*     if (strncmp(query_command, "(", 1) == 0) { */
-/*         token = next_token(&tokenizer_copy, &status->error_type); */
-/*     } */
-/* } */
+/**
+ * @brief This function loads in a table
+ *
+ * @param query_command
+ * @param internal_status
+ */
+void parse_load(char* query_command, Status* status) {
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->error_type = UNKNOWN_COMMAND;
+        status->code = ERROR;
+        return;
+    }
+    char file_name[DEFAULT_READ_SIZE];
+    if(!sscanf(query_command, "(\"%[^\"]", file_name)) {
+        status->error_type = INCORRECT_FORMAT;
+        status->error_message = "File name cannot be read";
+        return;
+    }
+
+    // TODO: make it read in a file
+    FILE* load_file = fopen(file_name, "r");
+    if (load_file == NULL) {
+        status->code = ERROR;
+        status->error_type = FILE_NOT_FOUND;
+        status->error_message = "Error, loaded file was not found.";
+        return;
+    }
+
+    // See if we can find the column then we can get the table
+    char csv_line[DEFAULT_READ_SIZE];
+    // TODO: edge case - table columns are not in order...
+    fgets(csv_line, DEFAULT_READ_SIZE, load_file);
+    char* read_ptr = csv_line;
+    Table* table = (Table*) process_lookup(&read_ptr, TABLE_LOOKUP, status);
+    if (!table) {
+        fclose(load_file);
+        return;
+    }
+
+    // TODO: this is the assumption I am making - no massive number of columns
+    assert(table->col_count * MAX_SIZE_NAME < DEFAULT_READ_SIZE);
+
+    // TODO: edge case - the file is super wide
+    // We know the max width is col_count
+    char* token = NULL;
+    while (fgets(csv_line, DEFAULT_READ_SIZE, load_file)) {
+        read_ptr = csv_line;
+        size_t data_idx = next_table_idx(table, status);
+        size_t col_idx = 0;
+        while ((token = strsep(&read_ptr, ",")) != NULL && col_idx < table->col_count) {
+            table->columns[col_idx++].data[data_idx] = atoi(token);
+        }
+    }
+    fclose(load_file);
+    return;
+}
 
 /**
  * parse_command takes as input:
@@ -334,9 +500,10 @@ DbOperator* parse_command(
         send_message->status = internal_status.error_type;
     } else if (strncmp(query_command, "load", 4) == 0) {
         query_command += 4;
-        /* dbo = parse_load(query_command, &internal_status); */
+        parse_load(query_command, &internal_status);
         send_message->status = internal_status.error_type;
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
+        // TODO: cleanup shutdown
         dbo = malloc(sizeof(DbOperator));
         dbo->type = SHUTDOWN;
         send_message->status = OK_WAIT_FOR_RESPONSE;

@@ -133,7 +133,9 @@ Status db_startup() {
 
     // create a new storage group object
     StorageGroup stored_db;
-    while (startup_status.code != ERROR && fread(&stored_db, sizeof(StorageGroup), 1, db_fp)) {
+    while (startup_status.code != ERROR &&
+           fread(&stored_db, sizeof(StorageGroup), 1, db_fp)
+    ) {
         // load the database
         startup_status = add_db(stored_db.name, true, stored_db.count_2);
         // make space and read the tables
@@ -145,7 +147,9 @@ Status db_startup() {
         }
         fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
         // process the tables
-        while (startup_status.code != ERROR && current_db->tables_size != stored_db.count_1) {
+        while (startup_status.code != ERROR &&
+               current_db->tables_size != stored_db.count_1
+        ) {
             load_table(sgrouping + current_db->tables_size, &startup_status);
         }
         // free at finish
@@ -290,12 +294,19 @@ Status dump_databases() {
             store_table(db_ptr->tables + i, sgrouping + i);
         }
 
-        // TODO: Add check for fwrite
-        fwrite(sgrouping, sizeof(StorageGroup), db_ptr->tables_size, db_fp);
-
-        // clean up and move to next database
+        // check successful write
+        if(fwrite(sgrouping, sizeof(StorageGroup),
+                  db_ptr->tables_size, db_fp) < db_ptr->tables_size
+        ) {
+            // stop if the write fails
+            db_ptr = NULL;
+            status.code = ERROR;
+            status.error_type = FILE_NOT_FOUND;
+        } else {
+            db_ptr = db_ptr->next_db;
+        }
+        // clean up and move t
         free(sgrouping);
-        db_ptr = db_ptr->next_db;
     }
     fclose(db_fp);
     return status;

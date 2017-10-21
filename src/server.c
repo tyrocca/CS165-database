@@ -53,10 +53,10 @@ void handle_client(int client_socket) {
 
     log_info("Connected to socket: %d.\n", client_socket);
     // check if there is a database to load
-    if (db_exists()) {
-        log_info("Database found... loading", client_socket);
-        db_startup();
-    }
+    /* if (db_exists()) { */
+    /*     log_info("Database found... loading\n", client_socket); */
+    /*     db_startup(); */
+    /* } */
 
     // Create two messages, one from which to read and one from which to receive
     message send_message;
@@ -85,10 +85,18 @@ void handle_client(int client_socket) {
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
 
+            // This is the internal_status marker
+            Status internal_status = {
+                .code = OK,
+                .error_type = OK_WAIT_FOR_RESPONSE,
+                .error_message = ""
+            };
+
             // 1. Parse command
+            // TODO: keep this? &send_message,
             DbOperator* query = parse_command(
                 recv_message.payload,
-                &send_message,
+                &internal_status,
                 client_socket,
                 client_context
             );
@@ -97,14 +105,16 @@ void handle_client(int client_socket) {
             // if we have had a failure - don't continue
             // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
             char* result = NULL;
-            switch(send_message.status) {
+            switch(internal_status.error_type) {
                 case OK_DONE:
+                    result = "OK DONE";
+                    break;
                 case OK_WAIT_FOR_RESPONSE:
                     // TODO - make this shutdown work correctly
                     if (query && query->type == SHUTDOWN) {
                         done = 1;
                     }
-                    result = execute_DbOperator(query);
+                    result = execute_DbOperator(query, &internal_status);
                     break;
                 default:
                     log_info("Error inside parse \n");
@@ -112,11 +122,27 @@ void handle_client(int client_socket) {
                     free(query);
             }
 
-            // TODO: determine why returns don't work after an error
+            /* send_message.status = internal_status.error_type; */
+
+            /* // TODO: determine why returns don't work after an error */
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
             send_message.payload = send_buffer;
+            // appropriately log errors
+            if (internal_status.code == ERROR) {
+                cs165_log(
+                    stdout,
+                    "Internal Error [%d]: %s\n",
+                    internal_status.error_type,
+                    internal_status.error_message
+                );
+            }
+            /* else { */
+            /*     cs165_log(stdout, "%s", result); */
+            /* } */
+            /* send_message.length = 0; */
+            /* send_message.payload = NULL; */
 
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {

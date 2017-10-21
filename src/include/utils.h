@@ -34,6 +34,11 @@ char* trim_whitespace(char *str);
 
 char* trim_quotes(char *str);
 
+/**
+ * trims the comments
+ */
+char* trim_comments(char *str);
+
 // returns the next power of 2
 size_t npow2(size_t n);
 

@@ -48,6 +48,28 @@ char* trim_whitespace(char *str) {
     return str;
 }
 
+
+/**
+ * @brief this function trims a string so that it only contains
+ *   eveything up to the comment
+ *
+ * @param str - an input string
+ *
+ * @return
+ */
+char* trim_comments(char *str) {
+    int length = strlen(str);
+    int i = 1;
+    while (i < length) {
+        if (str[i] == '-' && str[i - 1] == '-') {
+            str[i - 1] = '\0';
+            break;
+        }
+        ++i;
+    }
+    return str;
+}
+
 /* removes parenthesis characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of parenthesis characters.

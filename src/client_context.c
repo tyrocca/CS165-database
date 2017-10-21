@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include "client_context.h"
-
 /**
  * @brief This function is used for getting the next index in a column. It
  *  takes a the table and status and will return an index that tells you
@@ -50,7 +49,6 @@ size_t next_table_idx(Table* table, Status* ret_status) {
  */
 Db* get_valid_db(const char* db_name, Status* status) {
     // check that the database argument is the current active Database
-    status->code = OK;
     if (!current_db || strcmp(current_db->name, db_name) != 0) {
         status->code = ERROR;
         status->error_type = OBJECT_NOT_FOUND;

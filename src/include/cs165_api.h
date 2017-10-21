@@ -204,6 +204,7 @@ typedef enum OperatorType {
     CREATE,
     INSERT,
     SELECT,
+    PRINT,
     OPEN,
     SHUTDOWN
 } OperatorType;
@@ -220,13 +221,27 @@ typedef struct InsertOperator {
 typedef struct OpenOperator {
     char* db_name;
 } OpenOperator;
+
+typedef struct PrintOperator {
+    GeneralizedColumn** print_objects;
+    size_t num_columns;
+} PrintOperator;
+
+// TODO: use this
+typedef struct CreateOperator {
+    char* db_name[MAX_SIZE_NAME];
+    char* table_name[MAX_SIZE_NAME];
+    char* column_name[MAX_SIZE_NAME];
+} CreateOperator;
 /*
  * union type holding the fields of any operator
  */
 typedef union OperatorFields {
     InsertOperator insert_operator;
     OpenOperator open_operator;
+    PrintOperator print_operator;
 } OperatorFields;
+
 /*
  * DbOperator holds the following fields:
  * type: the type of operator to perform (i.e. insert, select, ...)

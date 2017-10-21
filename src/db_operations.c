@@ -18,6 +18,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
     for(size_t idx = 0; idx < insert_op.table->col_count; idx++) {
         insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
     }
+    free(insert_op.values);
     return "Success! Values inserted.";
 }
 
@@ -41,10 +42,9 @@ char* process_open(OpenOperator open_op, Status* status) {
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
  **/
-char* execute_DbOperator(DbOperator* query) {
+char* execute_DbOperator(DbOperator* query, Status* status) {
     // return if no query
     // TODO: determine what to do about create
-    Status db_op_status = { .code= OK };
     if (!query) {
         free(query);
         return "NO QUERY";
@@ -59,10 +59,10 @@ char* execute_DbOperator(DbOperator* query) {
             result = "Created";
             break;
         case OPEN:
-            result = process_open(query->operator_fields.open_operator, &db_op_status);
+            result = process_open(query->operator_fields.open_operator, status);
             break;
         case INSERT:
-            result = process_insert(query->operator_fields.insert_operator, &db_op_status);
+            result = process_insert(query->operator_fields.insert_operator, status);
             break;
         default:
             result = "Undefined Operation";

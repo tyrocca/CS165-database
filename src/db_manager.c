@@ -31,25 +31,27 @@ Column* create_column(char *name, Table* table, bool sorted, Status *ret_status)
         // set column if we can find a free one
         if (table->columns[idx].name[0] == '\0') {
             ret_status->code = OK;
-            ret_status->error_type = 0;
+            ret_status->msg_type = 0;
             // set the new column
             new_col = table->columns + idx;
             strcpy(new_col->name, name);
             // TODO: add indexes
             new_col->index = NULL;
+            // TODO: size?
+            new_col->size_ptr = &table->col_count;
             new_col->data = malloc(table->table_length * sizeof(int));
             if (!new_col->data) {
                 ret_status->code = ERROR;
-                ret_status->error_type = MEM_ALLOC_FAILED;
-                ret_status->error_message = "Couldn't allocate new data";
+                ret_status->msg_type = MEM_ALLOC_FAILED;
+                ret_status->msg = "Couldn't allocate new data";
                 return NULL;
             }
             return new_col;
         }
         idx++;
     }
-    ret_status->error_type = EXECUTION_ERROR;
-    ret_status->error_message = "Column could not be created";
+    ret_status->msg_type = EXECUTION_ERROR;
+    ret_status->msg = "Column could not be created";
     return new_col;
 }
 
@@ -72,8 +74,8 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
         Table* tmp = realloc(db->tables, db->tables_capacity * sizeof(Table));
         if (!tmp) {
             ret_status->code = ERROR;
-            ret_status->error_type = MEM_ALLOC_FAILED;
-            ret_status->error_message = "Could not reallocate new tables";
+            ret_status->msg_type = MEM_ALLOC_FAILED;
+            ret_status->msg = "Could not reallocate new tables";
             return NULL;
         }
         db->tables = tmp;
@@ -91,8 +93,8 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
     new_table->columns = calloc(new_table->col_count, sizeof(Column));
     if (!new_table->columns) {
         ret_status->code = ERROR;
-        ret_status->error_type = MEM_ALLOC_FAILED;
-        ret_status->error_message = "Couldn't allocate new columns";
+        ret_status->msg_type = MEM_ALLOC_FAILED;
+        ret_status->msg = "Couldn't allocate new columns";
         return NULL;
     }
 
@@ -127,8 +129,8 @@ Status add_db(const char* db_name, bool from_load, size_t capacity) {
     db_ptr = malloc(sizeof(Db));
     if (!db_ptr) {
         ret_status.code = ERROR;
-        ret_status.error_type = MEM_ALLOC_FAILED;
-        ret_status.error_message = "Could not allocate space for DB";
+        ret_status.msg_type = MEM_ALLOC_FAILED;
+        ret_status.msg = "Could not allocate space for DB";
         return ret_status;
     }
 
@@ -142,8 +144,8 @@ Status add_db(const char* db_name, bool from_load, size_t capacity) {
     db_ptr->tables = malloc(db_ptr->tables_capacity * sizeof(Table));
     if (db_ptr->tables == NULL) {
         ret_status.code = ERROR;
-        ret_status.error_type = MEM_ALLOC_FAILED;
-        ret_status.error_message = "Could not allocate space for tables";
+        ret_status.msg_type = MEM_ALLOC_FAILED;
+        ret_status.msg = "Could not allocate space for tables";
     }
 
     // set the head of the list - or update the chain of dbs

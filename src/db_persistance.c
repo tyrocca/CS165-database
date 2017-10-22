@@ -96,7 +96,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         col->data = malloc(tbl_ptr->table_length * sizeof(int));
         if (col->data == NULL) {
             status->code = ERROR;
-            status->error_type = MEM_ALLOC_FAILED;
+            status->msg_type = MEM_ALLOC_FAILED;
             fclose(table_file);
             return;
         }
@@ -105,7 +105,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         FILE* col_file = fopen(col_fname, "rb");
         if (col_file == NULL) {
             status->code = ERROR;
-            status->error_type = MEM_ALLOC_FAILED;
+            status->msg_type = MEM_ALLOC_FAILED;
             return;
         }
         fread(col->data, sizeof(int), tbl_ptr->table_size, col_file);
@@ -126,7 +126,7 @@ Status db_startup() {
     FILE* db_fp = fopen("./database/database.bin", "r");
     if (db_fp == NULL) {
         startup_status.code = ERROR;
-        startup_status.error_type = FILE_NOT_FOUND;
+        startup_status.msg_type = FILE_NOT_FOUND;
         fclose(db_fp);
         return startup_status;
     }
@@ -142,7 +142,7 @@ Status db_startup() {
         StorageGroup* sgrouping = malloc(sizeof(StorageGroup) * stored_db.count_1);
         if (sgrouping == NULL) {
             startup_status.code = ERROR;
-            startup_status.error_type = MEM_ALLOC_FAILED;
+            startup_status.msg_type = MEM_ALLOC_FAILED;
             return startup_status;
         }
         fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
@@ -220,7 +220,7 @@ void dump_column(const char* fname, Column* col, size_t data_len, Status* status
     FILE* col_file = fopen(fname, "wb");
     if (col_file == NULL) {
         status->code = ERROR;
-        status->error_type = FILE_NOT_FOUND;
+        status->msg_type = FILE_NOT_FOUND;
         return;
     }
     fwrite(col->data, sizeof(int), data_len, col_file);
@@ -240,7 +240,7 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
     FILE* table_file = fopen(fname, "wb");
     if (table_file == NULL) {
         status.code = ERROR;
-        status.error_type = FILE_NOT_FOUND;
+        status.msg_type = FILE_NOT_FOUND;
         return status;
     }
     for (size_t i = 0; status.code != ERROR && i < table->col_count; i++) {
@@ -271,7 +271,7 @@ Status dump_databases() {
     FILE* db_fp = fopen("./database/database.bin", "wb");
     if (db_fp == NULL) {
         status.code = ERROR;
-        status.error_type = FILE_NOT_FOUND;
+        status.msg_type = FILE_NOT_FOUND;
         fclose(db_fp);
         return status;
     }
@@ -287,7 +287,7 @@ Status dump_databases() {
         StorageGroup* sgrouping = malloc(sizeof(StorageGroup) * db_ptr->tables_size);
         if (sgrouping == NULL) {
             status.code = ERROR;
-            status.error_type = MEM_ALLOC_FAILED;
+            status.msg_type = MEM_ALLOC_FAILED;
             return status;
         }
         for (size_t i = 0; i < db_ptr->tables_size; i++) {
@@ -301,7 +301,7 @@ Status dump_databases() {
             // stop if the write fails
             db_ptr = NULL;
             status.code = ERROR;
-            status.error_type = FILE_NOT_FOUND;
+            status.msg_type = FILE_NOT_FOUND;
         } else {
             db_ptr = db_ptr->next_db;
         }
@@ -323,7 +323,7 @@ Status sync_db(Db* db) {
     // first store the databases and their tables
     Status status = dump_databases();
     if (status.code == ERROR) {
-        status.error_message = "Error updating the database file";
+        status.msg = "Error updating the database file";
         return status;
     }
     // store the database

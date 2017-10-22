@@ -28,7 +28,6 @@
 #include "message.h"
 #include "utils.h"
 // TODO: cleanup
-/* #include "client_context.h" */
 #include "db_operations.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
@@ -88,8 +87,8 @@ void handle_client(int client_socket) {
             // This is the internal_status marker
             Status internal_status = {
                 .code = OK,
-                .error_type = OK_WAIT_FOR_RESPONSE,
-                .error_message = ""
+                .msg_type = OK_WAIT_FOR_RESPONSE,
+                .msg = ""
             };
 
             // 1. Parse command
@@ -104,44 +103,45 @@ void handle_client(int client_socket) {
             // 2. Handle request
             // if we have had a failure - don't continue
             // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
-            switch(internal_status.error_type) {
+            Result* result;
+            switch(internal_status.msg_type) {
                 case OK_DONE:
-                    result = "OK DONE";
                     break;
                 case OK_WAIT_FOR_RESPONSE:
                     // TODO - make this shutdown work correctly
                     if (query && query->type == SHUTDOWN) {
                         done = 1;
                     }
-                    execute_DbOperator(query, &internal_status);
+                    result = execute_DbOperator(query, &internal_status);
                     break;
                 default:
                     log_info("Error inside parse \n");
-                    result = "There was an error";
                     free(query);
             }
-
-            /* send_message.status = internal_status.error_type; */
-
-            /* // TODO: determine why returns don't work after an error */
-            send_message.length = strlen(result);
-            char send_buffer[send_message.length + 1];
-            strcpy(send_buffer, result);
-            send_message.payload = send_buffer;
-            // appropriately log errors
             if (internal_status.code == ERROR) {
                 cs165_log(
                     stdout,
                     "Internal Error [%d]: %s\n",
-                    internal_status.error_type,
-                    internal_status.error_message
+                    internal_status.msg_type,
+                    internal_status.msg
                 );
+            } else {
+                cs165_log(stdout, "INFO: %s\n", internal_status.msg);
+                internal_status.msg = "";
             }
-            /* else { */
-            /*     cs165_log(stdout, "%s", result); */
-            /* } */
-            /* send_message.length = 0; */
-            /* send_message.payload = NULL; */
+
+            // if there is no result - or there was an error - report to
+            // the user
+            if (!result || internal_status.code != OK) {
+                send_message.length = strlen(internal_status.msg);
+                char send_buffer[send_message.length + 1];
+                strcpy(send_buffer, internal_status.msg);
+                send_message.payload = send_buffer;
+            } else {
+                // process result
+                send_message.length = 29;
+                send_message.payload = "This is a result placeholder";
+            }
 
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
@@ -150,7 +150,7 @@ void handle_client(int client_socket) {
             }
 
             // 4. Send response of request
-            if (send(client_socket, result, send_message.length, 0) == -1) {
+            if (send(client_socket, internal_status.msg, send_message.length, 0) == -1) {
                 log_err("Failed to send message.\n");
                 exit(1);
             }

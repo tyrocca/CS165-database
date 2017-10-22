@@ -54,6 +54,7 @@ struct Comparator;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME];
+    size_t* size_ptr;
     int* data; // TODO - make this datatype
     // You will implement column indexes later.
     void* index;
@@ -118,8 +119,8 @@ typedef enum StatusCode {
 // status declares an error code and associated message
 typedef struct Status {
     StatusCode code;
-    message_status error_type;
-    char* error_message;
+    message_status msg_type;
+    char* msg;
 } Status;
 
 // Defines a comparator flag between two values.
@@ -141,6 +142,7 @@ typedef struct Result {
     size_t num_tuples;
     DataType data_type;
     void *payload;
+    bool free_after_use;
 } Result;
 
 /*

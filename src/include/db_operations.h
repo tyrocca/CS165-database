@@ -8,6 +8,6 @@ char* process_open(OpenOperator open_op, Status* status);
 
 char* process_insert(InsertOperator insert_op, Status* status);
 
-char* execute_DbOperator(DbOperator* query, Status* status);
+Result* execute_DbOperator(DbOperator* query, Status* status);
 
 #endif

@@ -27,8 +27,8 @@ size_t next_table_idx(Table* table, Status* ret_status) {
             // check for error in realloc
             if (!tmp) {
                 ret_status->code = ERROR;
-                ret_status->error_type = MEM_ALLOC_FAILED;
-                ret_status->error_message = "Could not reallocate new data";
+                ret_status->msg_type = MEM_ALLOC_FAILED;
+                ret_status->msg = "Could not reallocate new data";
             }
             table->columns[idx].data = tmp;
             idx++;
@@ -51,8 +51,8 @@ Db* get_valid_db(const char* db_name, Status* status) {
     // check that the database argument is the current active Database
     if (!current_db || strcmp(current_db->name, db_name) != 0) {
         status->code = ERROR;
-        status->error_type = OBJECT_NOT_FOUND;
-        status->error_message = "Database name is not valid";
+        status->msg_type = OBJECT_NOT_FOUND;
+        status->msg = "Database name is not valid";
         return NULL;
     }
     return current_db;
@@ -77,14 +77,14 @@ Table* get_table(Db* db, const char* table_name, Status* status) {
     for (size_t i = 0; i < db->tables_size; i++) {
         if(strcmp(db->tables[i].name, table_name) == 0) {
             status->code = OK;
-            status->error_message = "Table Found";
+            status->msg = "Table Found";
             return db->tables + i;
         }
     }
     // if it didn't return we know that we had an error
     status->code = ERROR;
-    status->error_message = "No Table found";
-    status->error_type = OBJECT_NOT_FOUND;
+    status->msg = "No Table found";
+    status->msg_type = OBJECT_NOT_FOUND;
     return NULL;
 }
 
@@ -123,14 +123,14 @@ Column* get_column(Table* table, const char* col_name, Status* status) {
     for (size_t i = 0; i < table->col_count; i++) {
         if(strcmp(table->columns[i].name, col_name) == 0) {
             status->code = OK;
-            status->error_message = "Column Found";
+            status->msg = "Column Found";
             return table->columns + i;
         }
     }
     // if it didn't return we know that we had an error
     status->code = ERROR;
-    status->error_message = "No Table found";
-    status->error_type = OBJECT_NOT_FOUND;
+    status->msg = "No Table found";
+    status->msg_type = OBJECT_NOT_FOUND;
     return NULL;
 }
 

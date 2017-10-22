@@ -164,17 +164,17 @@ void* lookup_struct(NameLookup* lookup, LookupType struct_type) {
  */
 void parse_create_col(char* create_arguments, Status* status) {
     char** create_arguments_index = &create_arguments;
-    char* column_name = next_token(create_arguments_index, &status->error_type);
+    char* column_name = next_token(create_arguments_index, &status->msg_type);
     // TODO - use the lookup thing here
-    char* db_name = next_db_field(create_arguments_index, &status->error_type);
-    char* table_name = next_token(create_arguments_index, &status->error_type);
+    char* db_name = next_db_field(create_arguments_index, &status->msg_type);
+    char* table_name = next_token(create_arguments_index, &status->msg_type);
     // TODO - enable sorting
     bool sorted = false;
 
     // not enough arguments
-    if (status->error_type == INCORRECT_FORMAT) {
+    if (status->msg_type == INCORRECT_FORMAT) {
         status->code = ERROR;
-        status->error_message = "Wrong # of args for create col";
+        status->msg = "Wrong # of args for create col";
         return;
     }
 
@@ -182,9 +182,9 @@ void parse_create_col(char* create_arguments, Status* status) {
     column_name = trim_quotes(column_name);
     int last_char = strlen(table_name) - 1;
     if (last_char <= 0 || table_name[last_char] != ')') {
-        status->error_type = INCORRECT_FORMAT;
+        status->msg_type = INCORRECT_FORMAT;
         status->code = ERROR;
-        status->error_message = "Create Col does doesn't end with )";
+        status->msg = "Create Col does doesn't end with )";
         return;
     }
     // replace final ')' with null-termination character.
@@ -208,11 +208,11 @@ void parse_create_col(char* create_arguments, Status* status) {
 void parse_create_tbl(char* create_arguments, Status* status) {
     // process args
     char** create_arguments_index = &create_arguments;
-    char* table_name = next_token(create_arguments_index, &status->error_type);
-    char* db_name = next_token(create_arguments_index, &status->error_type);
-    char* col_cnt = next_token(create_arguments_index, &status->error_type);
+    char* table_name = next_token(create_arguments_index, &status->msg_type);
+    char* db_name = next_token(create_arguments_index, &status->msg_type);
+    char* col_cnt = next_token(create_arguments_index, &status->msg_type);
     // not enough arguments
-    if (status->error_type == INCORRECT_FORMAT) {
+    if (status->msg_type == INCORRECT_FORMAT) {
         status->code = ERROR;
         return;
     }
@@ -222,7 +222,7 @@ void parse_create_tbl(char* create_arguments, Status* status) {
     int last_char = strlen(col_cnt) - 1;
     if (col_cnt[last_char] != ')') {
         status->code = ERROR;
-        status->error_type = INCORRECT_FORMAT;
+        status->msg_type = INCORRECT_FORMAT;
         return;
     }
     // replace the ')' with a null terminating character.
@@ -232,7 +232,7 @@ void parse_create_tbl(char* create_arguments, Status* status) {
     int column_cnt = atoi(col_cnt);
     if (column_cnt < 1) {
         status->code = ERROR;
-        status->error_type = INCORRECT_FORMAT;
+        status->msg_type = INCORRECT_FORMAT;
         return;
     }
     // now make the table
@@ -244,12 +244,12 @@ void parse_create_tbl(char* create_arguments, Status* status) {
     } else if (get_table(database, table_name, status)) {
         // ensure that we are not duplicating tables
         status->code = ERROR;
-        status->error_type = OBJECT_ALREADY_EXISTS;
-        status->error_message = "Table already exists";
+        status->msg_type = OBJECT_ALREADY_EXISTS;
+        status->msg = "Table already exists";
         return;
     }
     status->code = OK;
-    status->error_type = OK_WAIT_FOR_RESPONSE;
+    status->msg_type = OK_WAIT_FOR_RESPONSE;
     // if everything works then return
     create_table(database, table_name, column_cnt, status);
 }
@@ -315,30 +315,30 @@ DbOperator* parse_create(char* create_arguments, Status* status) {
         tokenizer_copy++;
         // token stores first argument. Tokenizer copy now points to
         // just past first ","
-        token = next_token(&tokenizer_copy, &status->error_type);
+        token = next_token(&tokenizer_copy, &status->msg_type);
         // reject if it messed up
-        if (status->error_type == INCORRECT_FORMAT) {
+        if (status->msg_type == INCORRECT_FORMAT) {
             status->code = ERROR;
             return NULL;
         }
 
         // pass off to next parse function.
         if (strcmp(token, "db") == 0) {
-            status->error_type = parse_create_db(tokenizer_copy);
-            status->code = status->error_type != OK_DONE ? ERROR : OK;
+            status->msg_type = parse_create_db(tokenizer_copy);
+            status->code = status->msg_type != OK_DONE ? ERROR : OK;
         } else if (strcmp(token, "tbl") == 0) {
             parse_create_tbl(tokenizer_copy, status);
         } else if (strcmp(token, "col") == 0) {
             parse_create_col(tokenizer_copy, status);
         } else {
-            status->error_type = UNKNOWN_COMMAND;
+            status->msg_type = UNKNOWN_COMMAND;
         }
     } else {
-        status->error_type = UNKNOWN_COMMAND;
+        status->msg_type = UNKNOWN_COMMAND;
     }
     free(to_free);
     if (status->code == OK) {
-        status->error_type = OK_DONE;
+        status->msg_type = OK_DONE;
     }
     return NULL;
 }
@@ -361,11 +361,11 @@ DbOperator* parse_insert(char* query_command, Status* status) {
         query_command++;
         char** command_index = &query_command;
         // parse table input
-        char* db_name = next_db_field(command_index, &status->error_type);
-        char* table_name = next_token(command_index, &status->error_type);
-        if (status->error_type == INCORRECT_FORMAT) {
+        char* db_name = next_db_field(command_index, &status->msg_type);
+        char* table_name = next_token(command_index, &status->msg_type);
+        if (status->msg_type == INCORRECT_FORMAT) {
             status->code = ERROR;
-            status->error_message = "Wrong format for table name";
+            status->msg = "Wrong format for table name";
             return NULL;
         }
         // lookup the table and make sure it exists.
@@ -388,15 +388,15 @@ DbOperator* parse_insert(char* query_command, Status* status) {
         }
         // check that we received the correct number of input values
         if (columns_inserted != insert_table->col_count) {
-            status->error_type = INCORRECT_FORMAT;
+            status->msg_type = INCORRECT_FORMAT;
             status->code = ERROR;
-            status->error_message = "Wrong number of values for row";
+            status->msg = "Wrong number of values for row";
             free (dbo);
             return NULL;
         }
         return dbo;
     } else {
-        status->error_type = UNKNOWN_COMMAND;
+        status->msg_type = UNKNOWN_COMMAND;
         status->code = ERROR;
         return NULL;
     }
@@ -410,14 +410,14 @@ DbOperator* parse_insert(char* query_command, Status* status) {
  */
 void parse_load(char* query_command, Status* status) {
     if (strncmp(query_command, "(", 1) != 0) {
-        status->error_type = UNKNOWN_COMMAND;
+        status->msg_type = UNKNOWN_COMMAND;
         status->code = ERROR;
         return;
     }
     char file_name[DEFAULT_READ_SIZE];
     if(!sscanf(query_command, "(\"%[^\"]", file_name)) {
-        status->error_type = INCORRECT_FORMAT;
-        status->error_message = "File name cannot be read";
+        status->msg_type = INCORRECT_FORMAT;
+        status->msg = "File name cannot be read";
         return;
     }
 
@@ -425,8 +425,8 @@ void parse_load(char* query_command, Status* status) {
     FILE* load_file = fopen(file_name, "r");
     if (load_file == NULL) {
         status->code = ERROR;
-        status->error_type = FILE_NOT_FOUND;
-        status->error_message = "Error, loaded file was not found.";
+        status->msg_type = FILE_NOT_FOUND;
+        status->msg = "Error, loaded file was not found.";
         return;
     }
 
@@ -472,11 +472,11 @@ DbOperator* parse_print(char* query_command, Status* status) {
     // TODO: group these checks for the brackets
     if (strncmp(query_command, "(", 1) != 0) {
         status->code = ERROR;
-        status->error_type = INCORRECT_FORMAT;
+        status->msg_type = INCORRECT_FORMAT;
         return NULL;
     }
     query_command++;
-    DbOperator* db = malloc(sizeof(DbOperator));
+    DbOperator* dbo = malloc(sizeof(DbOperator));
     size_t num_alloced = DEFAULT_COL_ALLOC;
     size_t ncols = 0;
 
@@ -484,6 +484,8 @@ DbOperator* parse_print(char* query_command, Status* status) {
     GeneralizedColumn* print_objects = malloc(
             sizeof(GeneralizedColumn) * num_alloced);
 
+    // set the type (only one allowed)
+    GeneralizedColumnType col_type = strchr(query_command, '.') ? COLUMN : RESULT;
     char* token = NULL;
     while ((token = strsep(&query_command, ",)")) != NULL && status->code == OK) {
         // reallocate twice as many if needed
@@ -494,29 +496,26 @@ DbOperator* parse_print(char* query_command, Status* status) {
                 sizeof(GeneralizedColumn) * num_alloced
             );
         }
-
         // determine if we have a result or if we have a col
-        if (strchr(token, '.')) {
-            Column* db_obj = process_lookup(token, COLUMN_LOOKUP, status);
-            print_objects[ncols].column_type = COLUMN;
-            print_objects[ncols].column_pointer.column = db_obj;
+        print_objects[ncols].column_type = col_type;
+        void* db_obj = process_lookup(token, HANDLE_LOOKUP, status);
+        // TODO: create result column here?
+        if (col_type == COLUMN) {
+            print_objects[ncols++].column_pointer.column = (Column*) db_obj;
         } else {
-            Column* db_obj = process_lookup(token, HANDLE_LOOKUP, status);
-            print_objects[ncols].column_type = RESULT;
-            print_objects[ncols].column_pointer.result = (Result*) db_obj;
+            print_objects[ncols++].column_pointer.result = (Result*) db_obj;
         }
-        ncols++;
     }
-
-    if (status->code != OK) {
+    // if any of the columns aren't found we will hit this and we can reject
+    if (status->code != OK || ncols == 0) {
         free(print_objects);
-        free(db);
+        free(dbo);
         return NULL;
     }
-    // return the db obj
-    db->operator_fields.print_operator.print_objects = print_objects;
-    db->operator_fields.print_operator.num_columns = ncols;
-    return db;
+    // return the dbo obj
+    dbo->operator_fields.print_operator.print_objects = print_objects;
+    dbo->operator_fields.print_operator.num_columns = ncols;
+    return dbo;
 }
 
 /**
@@ -538,7 +537,7 @@ DbOperator* parse_command(
     // if we have a comment eliminate that
     query_command = trim_comments(query_command);
     if (!query_command || query_command[0] == '\0') {
-        internal_status->error_type = OK_DONE;
+        internal_status->msg_type = OK_DONE;
         internal_status->code = OK;
         // The -- signifies a comment line, no operator needed.
         return NULL;
@@ -581,7 +580,11 @@ DbOperator* parse_command(
         // TODO: cleanup shutdown
         dbo = malloc(sizeof(DbOperator));
         dbo->type = SHUTDOWN;
-        internal_status->error_type = OK_WAIT_FOR_RESPONSE;
+        internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
+    } else {
+        internal_status->code = ERROR;
+        internal_status->msg_type = UNKNOWN_COMMAND;
+        internal_status->msg = "UNKNOWN_CMD";
     }
 
     // return null is nothing was returned

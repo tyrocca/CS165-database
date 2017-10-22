@@ -7,6 +7,7 @@ typedef enum message_status {
     // good status
     OK_DONE,
     OK_WAIT_FOR_RESPONSE,
+    SHUTDOWN_SERVER,
     // User errors
     UNKNOWN_COMMAND,
     INCORRECT_FORMAT,

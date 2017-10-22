@@ -63,7 +63,7 @@ server: server.o parse.o utils.o db_manager.o client_context.o db_operations.o d
 clean:
 	rm -f client server *.o *~ *.bak core *.core cs165_unix_socket
 	rm -rf .deps
-	rm -f /tmp/cs165_unix_socket
+	# rm -f /tmp/cs165_unix_socket
 	rm -rf *.dSYM
 
 distclean: clean

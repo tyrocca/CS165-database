@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
@@ -38,6 +40,10 @@
  * @return Bool - if the database file exists
  */
 bool db_exists() {
+    struct stat st;
+    if (stat("./database", &st) == -1) {
+        mkdir("./database", 0777);
+    }
     return access("./database/database.bin", F_OK) != -1 ? true : false;
 }
 
@@ -107,11 +113,12 @@ void handle_client(int client_socket) {
             switch(internal_status.msg_type) {
                 case OK_DONE:
                     break;
-                case OK_WAIT_FOR_RESPONSE:
+                case SHUTDOWN_SERVER:
                     // TODO - make this shutdown work correctly
-                    if (query && query->type == SHUTDOWN) {
-                        done = 1;
-                    }
+                    done = 1;
+                    execute_DbOperator(query, &internal_status);
+                    break;
+                case OK_WAIT_FOR_RESPONSE:
                     result = execute_DbOperator(query, &internal_status);
                     break;
                 default:
@@ -130,6 +137,8 @@ void handle_client(int client_socket) {
                 internal_status.msg = "";
             }
 
+            // set the send_message status
+            send_message.status = internal_status.msg_type;
             // if there is no result - or there was an error - report to
             // the user
             if (!result || internal_status.code != OK) {
@@ -226,8 +235,6 @@ int main(void) {
         log_err("L%d: Failed to accept a new connection.\n", __LINE__);
         exit(1);
     }
-
     handle_client(client_socket);
-    shutdown_server();
     return 0;
 }

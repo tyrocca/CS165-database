@@ -135,6 +135,9 @@ int main(void) {
                 }
                 exit(1);
             }
+            if (recv_message.status == SHUTDOWN_SERVER) {
+                break;
+            }
         }
     }
     close(client_socket);

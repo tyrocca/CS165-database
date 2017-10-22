@@ -414,6 +414,7 @@ void parse_load(char* query_command, Status* status) {
         status->code = ERROR;
         return;
     }
+    // clean string
     char file_name[DEFAULT_READ_SIZE];
     if(!sscanf(query_command, "(\"%[^\"]", file_name)) {
         status->msg_type = INCORRECT_FORMAT;
@@ -475,7 +476,8 @@ DbOperator* parse_print(char* query_command, Status* status) {
         status->msg_type = INCORRECT_FORMAT;
         return NULL;
     }
-    query_command++;
+    // remove parens
+    query_command = trim_parenthesis(query_command);
     DbOperator* dbo = malloc(sizeof(DbOperator));
     size_t num_alloced = DEFAULT_COL_ALLOC;
     size_t ncols = 0;
@@ -485,9 +487,15 @@ DbOperator* parse_print(char* query_command, Status* status) {
             sizeof(GeneralizedColumn) * num_alloced);
 
     // set the type (only one allowed)
-    GeneralizedColumnType col_type = strchr(query_command, '.') ? COLUMN : RESULT;
+    GeneralizedColumnType col_type = RESULT;
+    LookupType look_type = HANDLE_LOOKUP;
+    if (strchr(query_command, '.')) {
+        col_type = COLUMN;
+        look_type = COLUMN_LOOKUP;
+    }
+
     char* token = NULL;
-    while ((token = strsep(&query_command, ",)")) != NULL && status->code == OK) {
+    while (status->code == OK && (token = strsep(&query_command, ",")) != NULL) {
         // reallocate twice as many if needed
         if (ncols == num_alloced) {
             num_alloced *= 2;
@@ -498,14 +506,19 @@ DbOperator* parse_print(char* query_command, Status* status) {
         }
         // determine if we have a result or if we have a col
         print_objects[ncols].column_type = col_type;
-        void* db_obj = process_lookup(token, HANDLE_LOOKUP, status);
-        // TODO: create result column here?
-        if (col_type == COLUMN) {
-            print_objects[ncols++].column_pointer.column = (Column*) db_obj;
-        } else {
-            print_objects[ncols++].column_pointer.result = (Result*) db_obj;
+
+        // break if nothing is found
+        void* db_obj = NULL;
+        if ((db_obj = process_lookup(token, look_type, status))) {
+            // TODO: create result column here?
+            if (col_type == COLUMN) {
+                print_objects[ncols++].column_pointer.column = (Column*) db_obj;
+            } else {
+                print_objects[ncols++].column_pointer.result = (Result*) db_obj;
+            }
         }
     }
+
     // if any of the columns aren't found we will hit this and we can reject
     if (status->code != OK || ncols == 0) {
         free(print_objects);
@@ -580,7 +593,7 @@ DbOperator* parse_command(
         // TODO: cleanup shutdown
         dbo = malloc(sizeof(DbOperator));
         dbo->type = SHUTDOWN;
-        internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
+        internal_status->msg_type = SHUTDOWN_SERVER;
     } else {
         internal_status->code = ERROR;
         internal_status->msg_type = UNKNOWN_COMMAND;

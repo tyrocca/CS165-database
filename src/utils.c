@@ -82,7 +82,6 @@ char* trim_parenthesis(char *str) {
             str[current++] = str[i];
         }
     }
-
     // Write new null terminator
     str[current] = '\0';
     return str;

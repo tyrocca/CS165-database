@@ -495,7 +495,8 @@ DbOperator* parse_print(char* query_command, Status* status) {
     }
 
     char* token = NULL;
-    while (status->code == OK && (token = strsep(&query_command, ",")) != NULL) {
+    while (status->code == OK &&
+            (token = strsep(&query_command, ",")) != NULL) {
         // reallocate twice as many if needed
         if (ncols == num_alloced) {
             num_alloced *= 2;

@@ -114,9 +114,9 @@ void handle_client(int client_socket) {
                 case OK_DONE:
                     break;
                 case SHUTDOWN_SERVER:
-                    // TODO - make this shutdown work correctly
+                    // TODO: Determine if I want to use a DB operator for
+                    // this
                     done = 1;
-                    execute_DbOperator(query, &internal_status);
                     break;
                 case OK_WAIT_FOR_RESPONSE:
                     result = execute_DbOperator(query, &internal_status);
@@ -236,5 +236,7 @@ int main(void) {
         exit(1);
     }
     handle_client(client_socket);
+    // TODO: determine correct location for shutdown
+    shutdown_server();
     return 0;
 }

@@ -105,7 +105,6 @@ Result* execute_DbOperator(DbOperator* query, Status* status) {
     switch (query->type) {
         case SHUTDOWN:
             status->msg = "Shutdown database";
-            shutdown_server();
             break;
         case CREATE:
             status->msg = "Created";

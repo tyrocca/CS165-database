@@ -7,6 +7,7 @@
 
 ### Loading
 Todos:
+- parsing / creation
 - Loading in the CSV is tricky
 - Currently we read all of the table in - what should be done instead?
 - Shutdown - what should I do here - I'm a bit confused

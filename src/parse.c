@@ -76,7 +76,8 @@ typedef struct NameLookup {
 typedef enum LookupType {
     DB_LOOKUP,
     TABLE_LOOKUP,
-    COLUMN_LOOKUP
+    COLUMN_LOOKUP,
+    HANDLE_LOOKUP
 } LookupType;
 
 /**
@@ -92,22 +93,28 @@ void* process_lookup(const char* string, LookupType struct_type, Status* status)
     NameLookup lookup = { "", "", "" };
     sscanf(string, "%[^.,\n].%[^.,\n].%[^.,\n]",
            lookup.db_name, lookup.table_name, lookup.column_name);
-    if (struct_type == DB_LOOKUP) {
-        return (void *) get_valid_db(lookup.db_name, status);
+    switch(struct_type) {
+        case HANDLE_LOOKUP:
+            return NULL;
+            /* return (void*) get_handle(lookup.db_name, status); */
+        case DB_LOOKUP:
+            return (void*) get_valid_db(lookup.db_name, status);
+        case TABLE_LOOKUP:
+            return (void*) get_table_from_db(
+                lookup.db_name,
+                lookup.table_name,
+                status
+            );
+        case COLUMN_LOOKUP:
+            return (void*) get_column_from_db(
+                lookup.db_name,
+                lookup.table_name,
+                lookup.column_name,
+                status
+            );
+        default:
+            return NULL;
     }
-    if (struct_type == TABLE_LOOKUP) {
-        return (void *) get_table_from_db(
-            lookup.db_name,
-            lookup.table_name,
-            status
-        );
-    }
-    return (void *) get_column_from_db(
-        lookup.db_name,
-        lookup.table_name,
-        lookup.column_name,
-        status
-    );
 }
 
 /**
@@ -461,28 +468,44 @@ void parse_load(char* query_command, Status* status) {
  * @return DbOperator - the operation to be done
  */
 DbOperator* parse_print(char* query_command, Status* status) {
+    // make sure we have the correct thing
+    // TODO: group these checks for the brackets
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->code = ERROR;
+        status->error_type = INCORRECT_FORMAT;
+        return NULL;
+    }
+    query_command++;
     DbOperator* db = malloc(sizeof(DbOperator));
     size_t num_alloced = DEFAULT_COL_ALLOC;
     size_t ncols = 0;
 
     // allocate an array of GeneralizedColumns
-    GeneralizedColumn** print_objects = malloc(
-            sizeof(GeneralizedColumn*) * num_alloced);
+    GeneralizedColumn* print_objects = malloc(
+            sizeof(GeneralizedColumn) * num_alloced);
 
     char* token = NULL;
     while ((token = strsep(&query_command, ",)")) != NULL && status->code == OK) {
-        // break on comments
-        if (strncmp("--", token, 2)) {
-            break;
-        }
         // reallocate twice as many if needed
         if (ncols == num_alloced) {
             num_alloced *= 2;
-            print_objects = realloc(print_objects, sizeof(GeneralizedColumn) * num_alloced);
+            print_objects = realloc(
+                print_objects,
+                sizeof(GeneralizedColumn) * num_alloced
+            );
         }
-        // read in the name
-        print_objects[ncols++] = (GeneralizedColumn*) process_lookup(
-                token, COLUMN_LOOKUP, status);
+
+        // determine if we have a result or if we have a col
+        if (strchr(token, '.')) {
+            Column* db_obj = process_lookup(token, COLUMN_LOOKUP, status);
+            print_objects[ncols].column_type = COLUMN;
+            print_objects[ncols].column_pointer.column = db_obj;
+        } else {
+            Column* db_obj = process_lookup(token, HANDLE_LOOKUP, status);
+            print_objects[ncols].column_type = RESULT;
+            print_objects[ncols].column_pointer.result = (Result*) db_obj;
+        }
+        ncols++;
     }
 
     if (status->code != OK) {
@@ -490,7 +513,7 @@ DbOperator* parse_print(char* query_command, Status* status) {
         free(db);
         return NULL;
     }
-
+    // return the db obj
     db->operator_fields.print_operator.print_objects = print_objects;
     db->operator_fields.print_operator.num_columns = ncols;
     return db;

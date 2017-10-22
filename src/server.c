@@ -53,10 +53,10 @@ void handle_client(int client_socket) {
 
     log_info("Connected to socket: %d.\n", client_socket);
     // check if there is a database to load
-    /* if (db_exists()) { */
-    /*     log_info("Database found... loading\n", client_socket); */
-    /*     db_startup(); */
-    /* } */
+    if (db_exists()) {
+        log_info("Database found... loading\n", client_socket);
+        db_startup();
+    }
 
     // Create two messages, one from which to read and one from which to receive
     message send_message;
@@ -104,7 +104,6 @@ void handle_client(int client_socket) {
             // 2. Handle request
             // if we have had a failure - don't continue
             // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
-            char* result = NULL;
             switch(internal_status.error_type) {
                 case OK_DONE:
                     result = "OK DONE";
@@ -114,7 +113,7 @@ void handle_client(int client_socket) {
                     if (query && query->type == SHUTDOWN) {
                         done = 1;
                     }
-                    result = execute_DbOperator(query, &internal_status);
+                    execute_DbOperator(query, &internal_status);
                     break;
                 default:
                     log_info("Error inside parse \n");

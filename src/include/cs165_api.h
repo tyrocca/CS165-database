@@ -223,7 +223,7 @@ typedef struct OpenOperator {
 } OpenOperator;
 
 typedef struct PrintOperator {
-    GeneralizedColumn** print_objects;
+    GeneralizedColumn* print_objects;
     size_t num_columns;
 } PrintOperator;
 

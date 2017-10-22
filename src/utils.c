@@ -11,7 +11,7 @@
 
 #define LOG 1
 #define LOG_ERR 1
-#define LOG_INFO 1
+/* #define LOG_INFO 1 */
 
 /* removes newline characters from the input string.
  * Shifts characters over and shortens the length of

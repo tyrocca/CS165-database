@@ -1,5 +1,6 @@
 #include "db_operations.h"
 #include "client_context.h"
+#include "assert.h"
 
 /**
  * @brief This function does the insert operation on the table
@@ -38,46 +39,51 @@ char* process_open(OpenOperator open_op, Status* status) {
 }
 
 Result* col_to_result(Column* col) {
-    Result* result = malloc(sizeof(Result));
-    result->free_after_use = true;
-    result->num_tuples = *col->size_ptr;
-    result->data_type = INT;
-
+    /* Result* result = malloc(sizeof(Result)); */
+    /* result->free_after_use = true; */
+    /* result->num_tuples = *col->size_ptr; */
+    /* result->data_type = INT; */
+    /* return result; */
+    (void) col;
+    return NULL;
 }
 
 Result* process_print(PrintOperator print_op, Status* status) {
-    assert(print_op.num_columns > 0);
-    // TODO: make it so we can print really long things
-    // Return null when there is nothing we can do
-    Result* result = NULL;
-    // this should alway be true
-    // get the column type and print size
-    GeneralizedColumnType type = print_op.print_objects[0].column_type;
-    size_t print_sz = type == (
-            RESULT ? print_op.print_objects[0].column_pointer.result->num_tuples
-            : *print_op.print_objects[0].column_pointer.column->size_ptr
-    );
-    // TODO: should the coersion to result happen in parse?
-    if (print_op.num_columns == 1 && type == RESULT) {
-        result = print_op.print_objects[0].column_pointer.result;
-    } else if (print_op.num_columns == 1 && type == COLUMN) {
-    }
-    // if we only have 1 column return it
-    if (print_objects.num_columns == 1) {
-        // if we have a result column, just return
-        if (type == RESULT) {
-            result = print_op->print_objects[0].column_pointer.result
-        } else
-    }
+    (void) print_op;
+    (void) status;
+    return NULL;
+    /* assert(print_op.num_columns > 0); */
+    /* // TODO: make it so we can print really long things */
+    /* // Return null when there is nothing we can do */
+    /* Result* result = NULL; */
+    /* // this should alway be true */
+    /* // get the column type and print size */
+    /* GeneralizedColumnType type = print_op.print_objects[0].column_type; */
+    /* size_t print_sz = type == ( */
+    /*         RESULT ? print_op.print_objects[0].column_pointer.result->num_tuples */
+    /*         : *print_op.print_objects[0].column_pointer.column->size_ptr */
+    /* ); */
+    /* // TODO: should the coersion to result happen in parse? */
+    /* if (print_op.num_columns == 1 && type == RESULT) { */
+    /*     result = print_op.print_objects[0].column_pointer.result; */
+    /* } else if (print_op.num_columns == 1 && type == COLUMN) { */
+    /* } */
+    /* // if we only have 1 column return it */
+    /* if (print_objects.num_columns == 1) { */
+    /*     // if we have a result column, just return */
+    /*     if (type == RESULT) { */
+    /*         result = print_op->print_objects[0].column_pointer.result */
+    /*     } else */
+    /* } */
 
-    else if (print_op->num_columns == 1) {
-        if (print_op->print_objects[0].column_type == RESULT) {
-            return print_ob
+    /* else if (print_op->num_columns == 1) { */
+    /*     if (print_op->print_objects[0].column_type == RESULT) { */
+    /*         return print_ob */
 
-        }
+    /*     } */
 
 
-    }
+    /* } */
 
 
 }

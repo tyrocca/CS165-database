@@ -103,7 +103,7 @@ void handle_client(int client_socket) {
             // 2. Handle request
             // if we have had a failure - don't continue
             // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
-            Result* result;
+            Result* result = NULL;
             switch(internal_status.msg_type) {
                 case OK_DONE:
                     break;

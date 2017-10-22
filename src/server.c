@@ -56,12 +56,7 @@ void handle_client(int client_socket) {
     int done = 0;
     int length = 0;
 
-    log_info("Connected to socket: %d.\n", client_socket);
-    // check if there is a database to load
-    if (db_exists()) {
-        log_info("Database found... loading\n", client_socket);
-        db_startup();
-    }
+    log_info("-- Connected to socket: %d.\n", client_socket);
 
     // Create two messages, one from which to read and one from which to receive
     message send_message;
@@ -115,25 +110,25 @@ void handle_client(int client_socket) {
                     break;
                 case SHUTDOWN_SERVER:
                     // TODO: Determine if I want to use a DB operator for
-                    // this
+                    // this (I will)
                     done = 1;
                     break;
                 case OK_WAIT_FOR_RESPONSE:
                     result = execute_DbOperator(query, &internal_status);
                     break;
                 default:
-                    log_info("Error inside parse \n");
+                    log_info("-- Error inside parse \n");
                     free(query);
             }
             if (internal_status.code == ERROR) {
                 cs165_log(
                     stdout,
-                    "Internal Error [%d]: %s\n",
+                    "-- Internal Error [%d]: %s\n",
                     internal_status.msg_type,
                     internal_status.msg
                 );
             } else {
-                cs165_log(stdout, "INFO: %s\n", internal_status.msg);
+                cs165_log(stdout, "-- INFO: %s\n", internal_status.msg);
                 internal_status.msg = "";
             }
 
@@ -166,7 +161,7 @@ void handle_client(int client_socket) {
         }
     } while (!done);
 
-    log_info("Connection closed at socket %d!\n", client_socket);
+    log_info("-- Connection closed at socket %d!\n", client_socket);
     close(client_socket);
 }
 
@@ -181,7 +176,7 @@ int setup_server() {
     size_t len;
     struct sockaddr_un local;
 
-    log_info("Attempting to setup server...\n");
+    log_info("-- Attempting to setup server...\n");
 
     if ((server_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         log_err("L%d: Failed to create socket.\n", __LINE__);
@@ -225,11 +220,17 @@ int main(void) {
         exit(1);
     }
 
-    log_info("Waiting for a connection %d ...\n", server_socket);
+    log_info("-- Waiting for a connection %d ...\n", server_socket);
 
     struct sockaddr_un remote;
     socklen_t t = sizeof(remote);
     int client_socket = 0;
+
+    // check if there is a database to load
+    if (db_exists()) {
+        log_info("-- Database found... loading\n", client_socket);
+        db_startup();
+    }
 
     if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
         log_err("L%d: Failed to accept a new connection.\n", __LINE__);

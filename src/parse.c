@@ -451,7 +451,8 @@ void parse_load(char* query_command, Status* status) {
         char* read_ptr = csv_line;
         size_t data_idx = next_table_idx(table, status);
         size_t col_idx = 0;
-        while ((token = strsep(&read_ptr, ",")) != NULL && col_idx < table->col_count) {
+        while ((token = strsep(&read_ptr, ",")) != NULL &&
+                col_idx < table->col_count) {
             table->columns[col_idx++].data[data_idx] = atoi(token);
         }
     }

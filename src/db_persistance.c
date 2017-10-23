@@ -391,7 +391,7 @@ void shutdown_database(Db* db) {
 
 /**
  * @brief This function goes over all of the databases saves them and then
- *  frees them
+ *  frees them - it should shut down the
  *
  * @return status
  */

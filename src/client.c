@@ -112,29 +112,35 @@ int main(void) {
             }
 
             // Always wait for server response (even if it is just an OK message)
-            if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                // TODO: why does this need ot check for the status
-                /* (recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) && */
-                if ((int) recv_message.length > 0) {
-                    // Calculate number of bytes in response package
-                    int num_bytes = (int) recv_message.length;
-                    char payload[num_bytes + 1];
-
-                    // Receive the payload and print it out
-                    if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                        payload[num_bytes] = '\0';
-                        printf("%s\n", payload);
+            // We will first receive a response from the server, that response is
+            // a message struct and that struct will then inform us about the
+            // following response that will be sent by the client
+            do {
+                if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
+                    // the response object from the server tells use about the
+                    // incoming response from the server
+                    if ((int) recv_message.length > 0) {
+                        // Calculate number of bytes in response package
+                        int num_bytes = (int) recv_message.length;
+                        // then make an payload to recieve the message
+                        char payload[num_bytes + 1];
+                        // Receive the payload and print it out
+                        if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
+                            payload[num_bytes] = '\0';
+                            printf("%s\n", payload);
+                        }
                     }
+                } else {
+                    if (len < 0) {
+                        log_err("Failed to receive message.");
+                    } else {
+                        log_info("-- Server closed connection\n");
+                    }
+                    exit(1);
                 }
-            } else {
-                if (len < 0) {
-                    log_err("Failed to receive message.");
-                }
-                else {
-                    log_info("-- Server closed connection\n");
-                }
-                exit(1);
-            }
+            } while (recv_message.status == OK_WAIT_FOR_RESPONSE);
+
+            // When the status is shutdown, break this cycle
             if (recv_message.status == SHUTDOWN_SERVER) {
                 break;
             }

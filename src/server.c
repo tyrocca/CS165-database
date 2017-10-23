@@ -29,10 +29,12 @@
 #include "cs165_api.h"
 #include "message.h"
 #include "utils.h"
+#include "assert.h"
 // TODO: cleanup
 #include "db_operations.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
+#define MAX_CLIENTS 16
 
 /**
  * @brief Function that returns a bool as to whether a file exists
@@ -45,6 +47,154 @@ bool db_exists() {
         mkdir("./database", 0777);
     }
     return access("./database/database.bin", F_OK) != -1 ? true : false;
+}
+
+/**
+ * @brief This function will send a string to a client
+ *
+ * @param client_socket
+ * @param msg
+ * @param response
+ */
+void send_to_client(int client_socket, message* msg, char* response){
+    // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
+    if (send(client_socket, msg, sizeof(message), 0) == -1) {
+        log_err("Failed to send message.\n");
+        exit(1);
+    }
+    // 4. Send response of request
+    if (send(client_socket, response, msg->length, 0) == -1) {
+        log_err("Failed to send message.\n");
+        exit(1);
+    }
+}
+
+
+/**
+ * @brief This function takes in a column and returns its values as a string
+ * that can later be parsed
+ *
+ * @param response
+ * @param char_idx
+ * @param data_type
+ * @param data_ptr
+ * @param row_idx
+ *
+ * @return
+ */
+int val_to_str(
+    char* response,
+    int char_idx,
+    DataType data_type,
+    void* data_ptr,
+    int row_idx
+) {
+    switch (data_type) {
+        case INT:
+            return snprintf(
+                &response[char_idx],
+                DEFAULT_QUERY_BUFFER_SIZE - char_idx,
+                "%d",
+                ((int*) data_ptr)[row_idx]
+            );
+        case FLOAT:
+            return snprintf(
+                &response[char_idx],
+                DEFAULT_QUERY_BUFFER_SIZE - char_idx,
+                "%f",
+                ((float*) data_ptr)[row_idx]
+            );
+        case LONG:
+            return snprintf(
+                &response[char_idx],
+                DEFAULT_QUERY_BUFFER_SIZE - char_idx,
+                "%ld",
+                ((long*) data_ptr)[row_idx]
+            );
+        default:
+            return -1;
+    }
+}
+
+
+
+/**
+ * @brief This function takes in a bunch of print objects and
+ *      sends the to the client correctly
+ *
+ * @param client_socket
+ * @param msg
+ * @param print_op
+ * @param status
+ */
+void print_to_client(
+    int client_socket,
+    message* msg,
+    PrintOperator* print_op,
+    Status* status
+) {
+    (void) status;
+    // TODO: what if we have a temp column (like if this is an average)
+    // make sure we have colummns
+    assert(print_op->num_columns > 0);
+
+    // this isn't great but this is how i will do this for now
+    GeneralizedColumnType type = print_op->print_objects[0].column_type;
+
+    // TODO make this handle data types
+    size_t print_sz = 0;
+    DataType data_type = INT;
+    if (type == RESULT) {
+        print_sz = print_op->print_objects[0].column_pointer.result->num_tuples;
+        data_type = print_op->print_objects[0].column_pointer.result->data_type;
+    } else {
+        print_sz = *print_op->print_objects[0].column_pointer.column->size_ptr;
+    }
+    // when formatting the string for dumping, do this
+    char response[DEFAULT_QUERY_BUFFER_SIZE];
+    size_t row_idx = 0;
+    size_t col_idx = 0;
+    int char_idx = 0;
+
+    if (print_op->num_columns == 1) {
+        void* data_ptr = (
+                type == RESULT
+                ? print_op->print_objects[0].column_pointer.result->payload
+                : (void*) print_op->print_objects[0].column_pointer.column->data
+        );
+        // make a string to save in
+        // make the data
+        while (row_idx < print_sz) {
+            int result = val_to_str(
+                response,
+                char_idx,
+                data_type,
+                data_ptr,
+                row_idx
+            );
+            assert(result > 0);
+            // make it adjust appropriately
+            if ((char_idx + result) >= DEFAULT_QUERY_BUFFER_SIZE - 2) {
+                // end the string
+                response[char_idx] = '\0';
+                char_idx = 0;
+                // TODO: dump string
+                msg->length = DEFAULT_QUERY_BUFFER_SIZE;
+                msg->payload = response;
+                send_to_client(client_socket, msg, response);
+            } else {
+                char_idx += result;
+                response[char_idx++] = '\n';
+                row_idx++;
+            }
+        }
+    } else {
+
+    }
+    response[char_idx-1] = '\0';
+    msg->length = char_idx;
+    msg->payload = response;
+    send_to_client(client_socket, msg, response);
 }
 
 /**
@@ -61,6 +211,13 @@ void handle_client(int client_socket) {
     // Create two messages, one from which to read and one from which to receive
     message send_message;
     message recv_message;
+
+    // This is the internal_status marker
+    Status internal_status = {
+        .code = OK,
+        .msg_type = OK_WAIT_FOR_RESPONSE,
+        .msg = ""
+    };
 
     // create the client context here
     ClientContext* client_context = NULL;
@@ -85,13 +242,6 @@ void handle_client(int client_socket) {
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
 
-            // This is the internal_status marker
-            Status internal_status = {
-                .code = OK,
-                .msg_type = OK_WAIT_FOR_RESPONSE,
-                .msg = ""
-            };
-
             // 1. Parse command
             // TODO: keep this? &send_message,
             DbOperator* query = parse_command(
@@ -104,22 +254,25 @@ void handle_client(int client_socket) {
             // 2. Handle request
             // if we have had a failure - don't continue
             // TODO: OK_WAIT_FOR_RESPONSE - should this be allowed?
-            Result* result = NULL;
+            PrintOperator* print_op = NULL;
             switch(internal_status.msg_type) {
                 case OK_DONE:
                     break;
                 case SHUTDOWN_SERVER:
-                    // TODO: Determine if I want to use a DB operator for
-                    // this (I will)
+                    // TODO: See if db op should be used
                     done = 1;
                     break;
                 case OK_WAIT_FOR_RESPONSE:
-                    result = execute_DbOperator(query, &internal_status);
+                    print_op = execute_DbOperator(query, &internal_status);
                     break;
                 default:
-                    log_info("-- Error inside parse \n");
+                    log_info("-- Error inside parse, case not found\n");
                     free(query);
             }
+
+            // when there is an error send the error to the client
+            // if there wasn't an error, log the message on the
+            // server
             if (internal_status.code == ERROR) {
                 cs165_log(
                     stdout,
@@ -128,7 +281,7 @@ void handle_client(int client_socket) {
                     internal_status.msg
                 );
             } else {
-                cs165_log(stdout, "-- INFO: %s\n", internal_status.msg);
+                cs165_log(stdout, "-- Result: %s\n", internal_status.msg);
                 internal_status.msg = "";
             }
 
@@ -136,27 +289,17 @@ void handle_client(int client_socket) {
             send_message.status = internal_status.msg_type;
             // if there is no result - or there was an error - report to
             // the user
-            if (!result || internal_status.code != OK) {
+            if (!print_op) {
+                // process the internal_status of the message
                 send_message.length = strlen(internal_status.msg);
                 char send_buffer[send_message.length + 1];
                 strcpy(send_buffer, internal_status.msg);
                 send_message.payload = send_buffer;
+                send_to_client(client_socket, &send_message, send_buffer);
             } else {
-                // process result
-                send_message.length = 29;
-                send_message.payload = "This is a result placeholder";
-            }
-
-            // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
-            if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-                log_err("Failed to send message.\n");
-                exit(1);
-            }
-
-            // 4. Send response of request
-            if (send(client_socket, internal_status.msg, send_message.length, 0) == -1) {
-                log_err("Failed to send message.\n");
-                exit(1);
+                // when we have a result column we need to send it in an
+                // orderly fashion
+                print_to_client(client_socket, &send_message, print_op, &internal_status);
             }
         }
     } while (!done);

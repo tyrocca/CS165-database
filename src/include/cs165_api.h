@@ -49,6 +49,7 @@ typedef enum DataType {
      FLOAT
 } DataType;
 
+
 struct Comparator;
 //struct ColumnIndex;
 

@@ -325,6 +325,7 @@ DbOperator* parse_create(char* create_arguments, Status* status) {
         // pass off to next parse function.
         if (strcmp(token, "db") == 0) {
             status->msg_type = parse_create_db(tokenizer_copy);
+            // TODO: clean up this code
             status->code = status->msg_type != OK_DONE ? ERROR : OK;
         } else if (strcmp(token, "tbl") == 0) {
             parse_create_tbl(tokenizer_copy, status);
@@ -337,6 +338,7 @@ DbOperator* parse_create(char* create_arguments, Status* status) {
         status->msg_type = UNKNOWN_COMMAND;
     }
     free(to_free);
+    // TODO - make these statuses do the correct thing
     if (status->code == OK) {
         status->msg_type = OK_DONE;
     }
@@ -530,6 +532,7 @@ DbOperator* parse_print(char* query_command, Status* status) {
     // return the dbo obj
     dbo->operator_fields.print_operator.print_objects = print_objects;
     dbo->operator_fields.print_operator.num_columns = ncols;
+    dbo->type = PRINT;
     return dbo;
 }
 
@@ -599,7 +602,7 @@ DbOperator* parse_command(
     } else {
         internal_status->code = ERROR;
         internal_status->msg_type = UNKNOWN_COMMAND;
-        internal_status->msg = "UNKNOWN_CMD";
+        internal_status->msg = "Error: Unknown Command";
     }
 
     // return null is nothing was returned

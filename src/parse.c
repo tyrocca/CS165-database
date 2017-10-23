@@ -358,6 +358,7 @@ DbOperator* parse_create(char* create_arguments, Status* status) {
 DbOperator* parse_insert(char* query_command, Status* status) {
     unsigned int columns_inserted = 0;
     char* token = NULL;
+
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0) {
         query_command++;

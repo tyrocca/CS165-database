@@ -191,10 +191,14 @@ void print_to_client(
     } else {
 
     }
-    response[char_idx-1] = '\0';
-    msg->length = char_idx;
-    msg->payload = response;
-    send_to_client(client_socket, msg, response);
+    if (char_idx > 0) {
+        response[char_idx-1] = '\0';
+        msg->length = char_idx;
+        msg->payload = response;
+        send_to_client(client_socket, msg, response);
+    }
+    status->msg_type = OK_DONE;
+    free(print_op->print_objects);
 }
 
 /**
@@ -211,13 +215,6 @@ void handle_client(int client_socket) {
     // Create two messages, one from which to read and one from which to receive
     message send_message;
     message recv_message;
-
-    // This is the internal_status marker
-    Status internal_status = {
-        .code = OK,
-        .msg_type = OK_WAIT_FOR_RESPONSE,
-        .msg = ""
-    };
 
     // create the client context here
     ClientContext* client_context = NULL;
@@ -237,6 +234,12 @@ void handle_client(int client_socket) {
         }
 
         if (!done) {
+            // This is the internal_status marker
+            Status internal_status = {
+                .code = OK,
+                .msg_type = OK_WAIT_FOR_RESPONSE,
+                .msg = ""
+            };
             char recv_buffer[recv_message.length + 1];
             length = recv(client_socket, recv_buffer, recv_message.length, 0);
             recv_message.payload = recv_buffer;
@@ -300,6 +303,7 @@ void handle_client(int client_socket) {
                 // when we have a result column we need to send it in an
                 // orderly fashion
                 print_to_client(client_socket, &send_message, print_op, &internal_status);
+                free(query);
             }
         }
     } while (!done);

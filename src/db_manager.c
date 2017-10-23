@@ -38,7 +38,7 @@ Column* create_column(char *name, Table* table, bool sorted, Status *ret_status)
             // TODO: add indexes
             new_col->index = NULL;
             // TODO: size?
-            new_col->size_ptr = &table->col_count;
+            new_col->size_ptr = &table->table_size;
             new_col->data = malloc(table->table_length * sizeof(int));
             if (!new_col->data) {
                 ret_status->code = ERROR;

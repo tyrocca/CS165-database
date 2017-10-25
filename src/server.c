@@ -153,7 +153,6 @@ void print_to_client(
     // when formatting the string for dumping, do this
     char response[DEFAULT_QUERY_BUFFER_SIZE];
     size_t row_idx = 0;
-    size_t col_idx = 0;
     int char_idx = 0;
 
     if (print_op->num_columns == 1) {
@@ -189,15 +188,61 @@ void print_to_client(
             }
         }
     } else {
+        size_t col_idx = 0;
+        while (row_idx < print_sz) {
+            // inner loop to print each column
+            // TODO: validate all lengths are the same
+            // TODO - are the data_types all the same?
+            void* data_ptr = NULL;
+            if (type == RESULT) {
+                data_ptr = print_op->print_objects[col_idx].column_pointer.result->payload;
+                data_type = print_op->print_objects[col_idx].column_pointer.result->data_type;
+            } else {
+                data_ptr = print_op->print_objects[col_idx].column_pointer.column->data;
+            }
+            int result = val_to_str(
+                response,
+                char_idx,
+                data_type,
+                data_ptr,
+                row_idx
+            );
+            assert(result > 0);
+            // make it adjust appropriately
+            if ((char_idx + result) >= DEFAULT_QUERY_BUFFER_SIZE - 2) {
+                // end the string
+                response[char_idx] = '\0';
+                char_idx = 0;
+                // TODO: dump string
+                msg->length = DEFAULT_QUERY_BUFFER_SIZE;
+                msg->payload = response;
+                send_to_client(client_socket, msg, response);
+            } else if ((col_idx + 1) == print_op->num_columns) {
+                // if we are at the end of the column add
+                // a new line character
+                char_idx += result;
+                response[char_idx++] = '\n';
+                col_idx = 0;
+                row_idx++;
+            } else {
+                char_idx += result;
+                response[char_idx++] = ',';
+                col_idx++;
+            }
+        }
 
+    }
+    // update the status of the message
+    if (status->msg_type == OK_WAIT_FOR_RESPONSE) {
+        status->msg_type = OK_DONE;
     }
     if (char_idx > 0) {
         response[char_idx-1] = '\0';
         msg->length = char_idx;
         msg->payload = response;
+        msg->status = status->msg_type;
         send_to_client(client_socket, msg, response);
     }
-    status->msg_type = OK_DONE;
     free(print_op->print_objects);
 }
 

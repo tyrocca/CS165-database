@@ -94,7 +94,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         strcpy(col->name, scolumns[i].name);
         // load if data was allocated
         col->data = malloc(tbl_ptr->table_length * sizeof(int));
-        col->size_ptr = &tbl_ptr->tables_size;
+        col->size_ptr = &tbl_ptr->table_size;
         if (col->data == NULL) {
             status->code = ERROR;
             status->msg_type = MEM_ALLOC_FAILED;

@@ -7,7 +7,8 @@ all: client server
 
 # C-compiler settings
 # TODO: CHANGE BACK
-CC = gcc -std=c99 -g -ggdb3
+# CC = gcc -std=c99 -g -ggdb3
+CC = gcc -std=c99 -ggdb3
 # the version on my computer id annoying
 # CC = gcc-7 -std=c99 -g -ggdb3
 

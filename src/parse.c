@@ -459,6 +459,9 @@ void parse_load(char* query_command, Status* status) {
             table->columns[col_idx++].data[data_idx] = atoi(token);
         }
     }
+    if (status->code == OK) {
+        status->msg_type = OK_DONE;
+    }
     fclose(load_file);
     return;
 }

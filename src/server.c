@@ -155,6 +155,8 @@ void print_to_client(
     size_t row_idx = 0;
     int char_idx = 0;
 
+    // different printing functions as printing is different if we
+    // are printing one or mulitple columns
     if (print_op->num_columns == 1) {
         void* data_ptr = (
                 type == RESULT
@@ -262,7 +264,7 @@ void handle_client(int client_socket) {
     message recv_message;
 
     // create the client context here
-    ClientContext* client_context = NULL;
+    ClientContext* client_context = malloc(sizeof(ClientContext));
 
     // Continually receive messages from client and execute queries.
     // 1. Parse the command
@@ -335,8 +337,7 @@ void handle_client(int client_socket) {
 
             // set the send_message status
             send_message.status = internal_status.msg_type;
-            // if there is no result - or there was an error - report to
-            // the user
+            // if there is no result - or error - report to the user
             if (!print_op) {
                 // process the internal_status of the message
                 send_message.length = strlen(internal_status.msg);

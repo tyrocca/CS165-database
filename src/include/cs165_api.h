@@ -34,6 +34,13 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 #define DEFAULT_READ_SIZE 4096
 
+// MACROS
+// We are using an array
+#define BIT_SZ 32
+#define SetBit(A,k)     ( A[(k/BIT_SZ)] |= (1 << (k%BIT_SZ)) )
+#define ClearBit(A,k)   ( A[(k/BIT_SZ)] &= ~(1 << (k%BIT_SZ)) )
+#define TestBit(A,k)    ( A[(k/BIT_SZ)] & (1 << (k%BIT_SZ)) )
+
 /**
  * EXTRA
  * DataType
@@ -46,7 +53,8 @@ SOFTWARE.
 typedef enum DataType {
      INT,
      LONG,
-     FLOAT
+     FLOAT,
+     BITVECTOR
 } DataType;
 
 
@@ -201,12 +209,18 @@ typedef struct Comparator {
 } Comparator;
 
 /*
- * tells the databaase what type of operator this is
+ * tells the database what type of operator this is
  */
 typedef enum OperatorType {
     CREATE,
     INSERT,
     SELECT,
+    SUM,
+    AVERAGE,
+    MIN,
+    MAX,
+    ADD,
+    FETCH,
     PRINT,
     OPEN,
     SHUTDOWN
@@ -230,6 +244,13 @@ typedef struct PrintOperator {
     size_t num_columns;
 } PrintOperator;
 
+typedef struct SelectOperator {
+    // this is the column that we filter from
+    Result* pos_col;
+    // this is the column that has the comparisons
+    Comparator comparator;
+} SelectOperator;
+
 // TODO: use this
 typedef struct CreateOperator {
     char* db_name[MAX_SIZE_NAME];
@@ -242,6 +263,7 @@ typedef struct CreateOperator {
 typedef union OperatorFields {
     InsertOperator insert_operator;
     OpenOperator open_operator;
+    SelectOperator select_operator;
     PrintOperator print_operator;
 } OperatorFields;
 

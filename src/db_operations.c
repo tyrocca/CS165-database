@@ -39,70 +39,62 @@ char* process_open(OpenOperator open_op, Status* status) {
     return NULL;
 }
 
-/* Result* col_to_result(Column* col, Result* result) { */
-    /* Result* result = malloc(sizeof(Result)); */
-    /* result->free_after_use = true; */
-    /* result->num_tuples = *col->size_ptr; */
-    /* result->data_type = INT; */
-    /* return result; */
-    /* (void) col; */
-    /* return NULL; */
-/* } */
+void select_from_col(Comparator* comp, Result* result_col) {
+    // TODO: Make it so this only does 1 comparison at a time
+    Column* col = comp->gen_col->column_pointer.column;
+    int* positions = malloc(sizeof(int) * (*col->size_ptr));
+    result_col->num_tuples = 0;
+    for (size_t idx = 0; idx < *col->size_ptr; idx++) {
+        positions[result_col->num_tuples] = idx;
+        // TODO: what if we are at the top bound for high? will we not get max?
+        result_col->num_tuples += (col->data[idx] >= comp->p_low &&
+                                   col->data[idx] < comp->p_high);
+    }
+    // if no matches return
+    if (result_col->num_tuples == 0) {
+        free(positions);
+        result_col->payload = NULL;
+        return;
+    }
+    // reallocate to the exact size of the column
+    result_col->payload = (void*) realloc(
+        positions,
+        sizeof(int) * result_col->num_tuples
+    );
+}
 
-/* void process_print(PrintOperator print_op, Status* status) { */
-/*     // make sure we have colummns */
-/*     assert(print_op.num_columns > 0); */
-/*     GeneralizedColumnType type = print_op.print_objects[0].column_type; */
-/*     size_t print_sz = type == ( */
-/*             RESULT ? print_op.print_objects[0].column_pointer.result->num_tuples */
-/*             : *print_op.print_objects[0].column_pointer.column->size_ptr */
-/*     ); */
-
-
-/* } */
-
-/* void process_print(PrintOperator print_op, Result* result, Status* status) { */
-    // make sure we have columns
-    /* assert(print_op.num_columns > 0); */
-    /* // TODO: make it so we can print really long things */
-    /* // Return null when there is nothing we can do */
-    /* // this should alway be true */
-    /* // get the column type and print size */
-    /* GeneralizedColumnType type = print_op.print_objects[0].column_type; */
-    /* size_t print_sz = type == ( */
-    /*         RESULT ? print_op.print_objects[0].column_pointer.result->num_tuples */
-    /*         : *print_op.print_objects[0].column_pointer.column->size_ptr */
-    /* ); */
-/*     // TODO: should the coersion to result happen in parse? */
-/*     if (print_op.num_columns == 1 && type == RESULT) { */
-/*         result = print_op.print_objects[0].column_pointer.result; */
-/*     } else if (print_op.num_columns == 1 && type == COLUMN) { */
-/*         col_to_result( */
-/*     } */
-/*     // if we only have 1 column return it */
-/*     if (print_objects.num_columns == 1) { */
-/*         // if we have a result column, just return */
-/*         if (type == RESULT) { */
-/*             result = print_op->print_objects[0].column_pointer.result */
-/*         } else */
-/*     } */
-
-/*     else if (print_op->num_columns == 1) { */
-/*         if (print_op->print_objects[0].column_type == RESULT) { */
-/*             return print_ob */
-
-/*         } */
-
-
-/*     } */
-
-
-/* } */
+/**
+ * @brief This function processes a select command
+ *
+ * @param select_op
+ * @param context
+ * @param status
+ */
+void process_select(SelectOperator* select_op, ClientContext* context, Status* status) {
+    (void) status;
+    // this makes the column handle
+    GeneralizedColumnHandle* gcol_handle = add_result_column(
+        context,
+        select_op->comparator.handle
+    );
+    Result* result_col = malloc(sizeof(Result));
+    if (select_op->pos_col) {
+        // do stuff with positions
+    } else {
+        // assert that the column will be a result column
+        assert(select_op->comparator.gen_col->column_type == COLUMN);
+        select_from_col(&select_op->comparator, result_col);
+    }
+    // set the resulting column
+    gcol_handle->generalized_column.column_pointer.result = result_col;
+    gcol_handle->generalized_column.column_type = RESULT;
+}
 
 
 /**
  * execute_DbOperator takes as input the DbOperator and executes the query.
- * This should be replaced in your implementation (and its implementation possibly moved to a different file).
+ * This should be replaced in your implementation (and its implementation
+ * possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
  **/
 PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
@@ -119,6 +111,13 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
         case CREATE:
             status->msg = "Created";
             break;
+        case SELECT:
+            process_select(
+                &query->operator_fields.select_operator,
+                query->context,
+                status
+            );
+            break;
         case PRINT:
             return &query->operator_fields.print_operator;
         case OPEN:
@@ -133,6 +132,7 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
             break;
         default:
             status->msg = "Undefined Operation";
+            status->msg_type = QUERY_UNSUPPORTED;
             break;
     }
     // free query

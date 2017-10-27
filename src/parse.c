@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <assert.h>
+#include <limits.h>
 #include "cs165_api.h"
 #include "parse.h"
 #include "utils.h"
@@ -28,7 +29,6 @@
  *   "create" - make a create
  *
  */
-
 
 /**
  * @brief Takes a pointer to a string.  This method returns the original
@@ -149,6 +149,11 @@ void* lookup_struct(NameLookup* lookup, LookupType struct_type) {
     }
 }
 
+/**
+ * CREATION FUNCTIONS
+ *
+ * Below are a list of the parse functions for creating columns
+ */
 
 /**
  * @brief this function takes in the argument string for the creation
@@ -345,6 +350,10 @@ DbOperator* parse_create(char* create_arguments, Status* status) {
     return NULL;
 }
 
+/**
+ * INSERT Functions:
+ * Below are a list of the functions for parsing insertion
+ */
 
 /**
  * @brief parse_insert reads in the arguments for a create statement and
@@ -502,6 +511,7 @@ DbOperator* parse_print(char* query_command, Status* status) {
     }
 
     char* token = NULL;
+    size_t col_len = 0;
     while (status->code == OK &&
             (token = strsep(&query_command, ",")) != NULL) {
         // reallocate twice as many if needed
@@ -517,12 +527,29 @@ DbOperator* parse_print(char* query_command, Status* status) {
 
         // break if nothing is found
         void* db_obj = NULL;
+        // TODO: is there a good way to consolidate this?
         if ((db_obj = process_lookup(token, look_type, status))) {
             // TODO: create result column here?
             if (col_type == COLUMN) {
                 print_objects[ncols++].column_pointer.column = (Column*) db_obj;
+                // validate the the column lengths are all the same
+                if (col_len == 0) {
+                    col_len = *((Column*) db_obj)->size_ptr;
+                } else if (col_len != *((Column*) db_obj)->size_ptr) {
+                    status->code = ERROR;
+                    status->msg_type = QUERY_UNSUPPORTED;
+                    status->msg = "Cannot print different length items";
+                }
             } else {
                 print_objects[ncols++].column_pointer.result = (Result*) db_obj;
+                // reject if length is not clear
+                if (col_len == 0) {
+                    col_len = ((Result*) db_obj)->num_tuples;
+                } else if (col_len != ((Result*) db_obj)->num_tuples) {
+                    status->code = ERROR;
+                    status->msg_type = QUERY_UNSUPPORTED;
+                    status->msg = "Cannot print different length items";
+                }
             }
         }
     }
@@ -539,6 +566,112 @@ DbOperator* parse_print(char* query_command, Status* status) {
     dbo->type = PRINT;
     return dbo;
 }
+
+/**
+ * @brief This function takes a query string, and updates the comparator
+ * so that it will run the correct comparison
+ *
+ * @param range_str - string with the "null, 100"
+ * @param comp - the comparison object
+ * @param status - the status that will be updated
+ */
+void set_bounds(char* range_str, Comparator* comp, Status* status) {
+    char* token = next_token(&range_str, &status->msg_type);
+    comp->p_low = strncmp(token, "null", 4) == 0 ? INT_MIN : atoi(token);
+    comp->type1 = GREATER_THAN_OR_EQUAL;
+    // it will be < higher
+    comp->p_high = strncmp(range_str, "null", 4) == 0 ? INT_MAX : atoi(range_str);
+    comp->type2 = LESS_THAN;
+    if (status->msg_type == INCORRECT_FORMAT) {
+        status->code = ERROR;
+    }
+
+    // make the comparison smarter
+    if (comp->p_low == comp->p_high) {
+        comp->type1 = comp->type2 = EQUAL;
+    } else if (comp->p_low == INT_MIN) {
+        comp->type1 = NO_COMPARISON;
+    } else if (comp->p_high == INT_MAX) {
+        comp->type2 = NO_COMPARISON;
+    }
+}
+
+/**
+ * @brief This function takes the string
+ *
+ * @param query_command
+ * @param context
+ * @param status
+ *
+ * @return
+ */
+DbOperator* parse_select(char* query_command, ClientContext* context, Status* status) {
+    (void) context;
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        return NULL;
+    }
+    // cut off the parens
+    query_command = trim_parenthesis(query_command);
+    // move the token
+    char* token = next_token(&query_command, &status->msg_type);
+    if (status->msg_type == INCORRECT_FORMAT) {
+        status->code = ERROR;
+        return NULL;
+    }
+    // create space for the operator
+    DbOperator* db_query = malloc(sizeof(DbOperator));
+    db_query->type = SELECT;
+    // make space for the generalized column
+    GeneralizedColumn* gcol = malloc(sizeof(GeneralizedColumn));
+    // generalized column
+    if (strchr(token, '.')) {
+        gcol->column_type = COLUMN;
+        db_query->operator_fields.select_operator.pos_col = NULL;
+        // get the column
+        gcol->column_pointer.column = (Column*) process_lookup(
+            token,
+            COLUMN_LOOKUP,
+            status
+        );
+        // set the bounds on the query
+        set_bounds(
+            query_command,
+            &db_query->operator_fields.select_operator.comparator,
+            status
+        );
+    } else {
+        // get the position column
+        gcol->column_type = RESULT;
+        db_query->operator_fields.select_operator.pos_col = (Result*) process_lookup(
+            token,
+            COLUMN_LOOKUP,
+            status
+        );
+        token = next_token(&query_command, &status->msg_type);
+        // get the result column
+        gcol->column_pointer.result = (Result*) process_lookup(
+            token,
+            COLUMN_LOOKUP,
+            status
+        );
+        set_bounds(
+            query_command,
+            &db_query->operator_fields.select_operator.comparator,
+            status
+        );
+    }
+    if (status->code != OK) {
+        free(gcol);
+        free(db_query);
+        return NULL;
+    }
+    status->msg_type = OK_DONE;
+    db_query->operator_fields.select_operator.comparator.gen_col = gcol;
+    return db_query;
+}
+
 
 /**
  * parse_command takes as input:
@@ -592,8 +725,16 @@ DbOperator* parse_command(
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, internal_status);
+    } else if (strncmp(query_command, "select", 6) == 0) {
+        query_command += 6;
+        dbo = parse_select(query_command, context, internal_status);
+        dbo->operator_fields.select_operator.comparator.handle = handle;
+    } else if (strncmp(query_command, "fetch", 6) == 0) {
+        query_command += 6;
+        /* dbo = parse_fetch(query_command, internal_status); */
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
+        // TODO: pass client context to print
         dbo = parse_print(query_command, internal_status);
     } else if (strncmp(query_command, "load", 4) == 0) {
         query_command += 4;

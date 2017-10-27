@@ -1,6 +1,30 @@
 #include <string.h>
 #include <stdlib.h>
 #include "client_context.h"
+#define HANDLE_INIT_SIZE 8
+
+/**
+ * @brief This function takes the client context and a string for the handle
+ *  and returns the address of the allocated GeneralizedColumnHandle
+ *
+ * @param context
+ * @param handle
+ *
+ * @return
+ */
+GeneralizedColumnHandle* add_result_column(ClientContext* context, const char* handle) {
+    if (context->chandles_in_use == context->chandle_slots) {
+        context->chandle_slots *= 2;
+        context->chandle_table = realloc(
+            context->chandle_table,
+            context->chandle_slots * sizeof(GeneralizedColumnHandle)
+        );
+    }
+    // copy the name
+    strcpy(context->chandle_table[context->chandles_in_use].name, handle);
+    return &context->chandle_table[context->chandles_in_use];
+}
+
 /**
  * @brief This function is used for getting the next index in a column. It
  *  takes a the table and status and will return an index that tells you

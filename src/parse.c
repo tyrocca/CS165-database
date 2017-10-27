@@ -94,9 +94,6 @@ void* process_lookup(const char* string, LookupType struct_type, Status* status)
     sscanf(string, "%[^.,\n].%[^.,\n].%[^.,\n]",
            lookup.db_name, lookup.table_name, lookup.column_name);
     switch(struct_type) {
-        case HANDLE_LOOKUP:
-            return NULL;
-            /* return (void*) get_handle(lookup.db_name, status); */
         case DB_LOOKUP:
             return (void*) get_valid_db(lookup.db_name, status);
         case TABLE_LOOKUP:
@@ -115,6 +112,18 @@ void* process_lookup(const char* string, LookupType struct_type, Status* status)
         default:
             return NULL;
     }
+}
+
+/**
+ * @brief Wrapper for the column lookup
+ *
+ * @param string
+ * @param status
+ *
+ * @return
+ */
+Column* get_col_from_string(const char* string, Status* status) {
+    return (Column*) process_lookup(string, COLUMN_LOOKUP, status);
 }
 
 /**
@@ -484,7 +493,7 @@ void parse_load(char* query_command, Status* status) {
  *
  * @return DbOperator - the operation to be done
  */
-DbOperator* parse_print(char* query_command, Status* status) {
+DbOperator* parse_print(char* query_command, ClientContext* client, Status* status) {
     // make sure we have the correct thing
     // TODO: group these checks for the brackets
     if (strncmp(query_command, "(", 1) != 0) {
@@ -503,17 +512,12 @@ DbOperator* parse_print(char* query_command, Status* status) {
             sizeof(GeneralizedColumn) * num_alloced);
 
     // set the type (only one allowed)
-    GeneralizedColumnType col_type = RESULT;
-    LookupType look_type = HANDLE_LOOKUP;
-    if (strchr(query_command, '.')) {
-        col_type = COLUMN;
-        look_type = COLUMN_LOOKUP;
-    }
+    GeneralizedColumnType col_type = strchr(query_command, '.') ? COLUMN : RESULT;
 
+    // we make a token to fill
     char* token = NULL;
     size_t col_len = 0;
-    while (status->code == OK &&
-            (token = strsep(&query_command, ",")) != NULL) {
+    while (status->code == OK && (token = strsep(&query_command, ",")) != NULL) {
         // reallocate twice as many if needed
         if (ncols == num_alloced) {
             num_alloced *= 2;
@@ -526,30 +530,33 @@ DbOperator* parse_print(char* query_command, Status* status) {
         print_objects[ncols].column_type = col_type;
 
         // break if nothing is found
-        void* db_obj = NULL;
-        // TODO: is there a good way to consolidate this?
-        if ((db_obj = process_lookup(token, look_type, status))) {
-            // TODO: create result column here?
-            if (col_type == COLUMN) {
-                print_objects[ncols++].column_pointer.column = (Column*) db_obj;
-                // validate the the column lengths are all the same
-                if (col_len == 0) {
-                    col_len = *((Column*) db_obj)->size_ptr;
-                } else if (col_len != *((Column*) db_obj)->size_ptr) {
-                    status->code = ERROR;
-                    status->msg_type = QUERY_UNSUPPORTED;
-                    status->msg = "Cannot print different length items";
-                }
-            } else {
-                print_objects[ncols++].column_pointer.result = (Result*) db_obj;
-                // reject if length is not clear
-                if (col_len == 0) {
-                    col_len = ((Result*) db_obj)->num_tuples;
-                } else if (col_len != ((Result*) db_obj)->num_tuples) {
-                    status->code = ERROR;
-                    status->msg_type = QUERY_UNSUPPORTED;
-                    status->msg = "Cannot print different length items";
-                }
+        if (col_type == COLUMN) {
+            Column* col = NULL;
+            if ((col = get_col_from_string(token, status)) == NULL) {
+                break;
+            }
+            print_objects[ncols++].column_pointer.column = col;
+            // validate the the column lengths are all the same
+            if (col_len == 0) {
+                col_len = *col->size_ptr;
+            } else if (col_len != *col->size_ptr) {
+                status->code = ERROR;
+                status->msg_type = QUERY_UNSUPPORTED;
+                status->msg = "Cannot print different length items";
+            }
+        } else {
+            Result* rcol = NULL;
+            if ((rcol = get_result(client, token, status)) == NULL) {
+                break;
+            }
+            print_objects[ncols++].column_pointer.result = rcol;
+            // reject if length is not clear
+            if (col_len == 0) {
+                col_len = rcol->num_tuples;
+            } else if (col_len != rcol->num_tuples) {
+                status->code = ERROR;
+                status->msg_type = QUERY_UNSUPPORTED;
+                status->msg = "Cannot print different length items";
             }
         }
     }
@@ -606,7 +613,6 @@ void set_bounds(char* range_str, Comparator* comp, Status* status) {
  * @return
  */
 DbOperator* parse_select(char* query_command, ClientContext* context, Status* status) {
-    (void) context;
     if (strncmp(query_command, "(", 1) != 0) {
         status->code = ERROR;
         status->msg_type = INCORRECT_FORMAT;
@@ -630,44 +636,30 @@ DbOperator* parse_select(char* query_command, ClientContext* context, Status* st
         gcol->column_type = COLUMN;
         db_query->operator_fields.select_operator.pos_col = NULL;
         // get the column
-        gcol->column_pointer.column = (Column*) process_lookup(
-            token,
-            COLUMN_LOOKUP,
-            status
-        );
-        // set the bounds on the query
-        set_bounds(
-            query_command,
-            &db_query->operator_fields.select_operator.comparator,
-            status
-        );
+        gcol->column_pointer.column = get_col_from_string(token, status);
     } else {
         // get the position column
         gcol->column_type = RESULT;
-        db_query->operator_fields.select_operator.pos_col = (Result*) process_lookup(
+        db_query->operator_fields.select_operator.pos_col = get_result(
+            context,
             token,
-            COLUMN_LOOKUP,
             status
         );
         token = next_token(&query_command, &status->msg_type);
         // get the result column
-        gcol->column_pointer.result = (Result*) process_lookup(
-            token,
-            COLUMN_LOOKUP,
-            status
-        );
-        set_bounds(
-            query_command,
-            &db_query->operator_fields.select_operator.comparator,
-            status
-        );
+        gcol->column_pointer.result = get_result(context, token, status);
     }
     if (status->code != OK) {
         free(gcol);
         free(db_query);
         return NULL;
     }
-    status->msg_type = OK_DONE;
+    // set the bounds on the query
+    set_bounds(
+        query_command,
+        &db_query->operator_fields.select_operator.comparator,
+        status
+    );
     db_query->operator_fields.select_operator.comparator.gen_col = gcol;
     return db_query;
 }
@@ -735,7 +727,7 @@ DbOperator* parse_command(
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         // TODO: pass client context to print
-        dbo = parse_print(query_command, internal_status);
+        dbo = parse_print(query_command, context, internal_status);
     } else if (strncmp(query_command, "load", 4) == 0) {
         query_command += 4;
         parse_load(query_command, internal_status);

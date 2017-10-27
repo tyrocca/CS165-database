@@ -35,6 +35,7 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 #define MAX_CLIENTS 16
+#define DEFAULT_CLIENT_INIT 8
 
 /**
  * @brief Function that returns a bool as to whether a file exists
@@ -133,7 +134,7 @@ void print_to_client(
     PrintOperator* print_op,
     Status* status
 ) {
-    (void) status;
+
     // TODO: what if we have a temp column (like if this is an average)
     // make sure we have colummns
     assert(print_op->num_columns > 0);
@@ -265,6 +266,9 @@ void handle_client(int client_socket) {
 
     // create the client context here
     ClientContext* client_context = malloc(sizeof(ClientContext));
+    client_context->chandle_table = malloc(sizeof(GeneralizedColumn) * DEFAULT_CLIENT_INIT);
+    client_context->chandle_slots = DEFAULT_CLIENT_INIT;
+    client_context->chandles_in_use = 0;
 
     // Continually receive messages from client and execute queries.
     // 1. Parse the command
@@ -354,6 +358,8 @@ void handle_client(int client_socket) {
         }
     } while (!done);
 
+    // TODO: free the client context correctly
+    free(client_context);
     log_info("-- Connection closed at socket %d!\n", client_socket);
     close(client_socket);
 }

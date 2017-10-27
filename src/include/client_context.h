@@ -3,6 +3,12 @@
 
 #include "cs165_api.h"
 
+Result* get_result(
+    ClientContext* client,
+    const char* result_name,
+    Status* status
+);
+
 GeneralizedColumnHandle* add_result_column(
     ClientContext* context,
     const char* handle

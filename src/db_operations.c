@@ -71,7 +71,6 @@ void select_from_col(Comparator* comp, Result* result_col) {
  * @param status
  */
 void process_select(SelectOperator* select_op, ClientContext* context, Status* status) {
-    (void) status;
     // this makes the column handle
     GeneralizedColumnHandle* gcol_handle = add_result_column(
         context,
@@ -88,6 +87,7 @@ void process_select(SelectOperator* select_op, ClientContext* context, Status* s
     // set the resulting column
     gcol_handle->generalized_column.column_pointer.result = result_col;
     gcol_handle->generalized_column.column_type = RESULT;
+    status->msg_type = OK_DONE;
 }
 
 

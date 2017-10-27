@@ -3,6 +3,32 @@
 #include "client_context.h"
 #define HANDLE_INIT_SIZE 8
 
+
+/**
+ * @brief This function gets a result column from the client
+ *
+ * @param client
+ * @param result_name
+ * @param status
+ *
+ * @return
+ */
+Result* get_result(ClientContext* client, const char* result_name, Status* status) {
+    // this try to find matching column (speed improvements here)
+    for (int i = 0; i < client->chandles_in_use; i++) {
+        if(strcmp(client->chandle_table[i].name, result_name) == 0) {
+            status->code = OK;
+            status->msg = "Result Found";
+            return client->chandle_table[i].generalized_column.column_pointer.result;
+        }
+    }
+    // if it didn't return we know that we had an error
+    status->code = ERROR;
+    status->msg = "No Result found";
+    status->msg_type = OBJECT_NOT_FOUND;
+    return NULL;
+}
+
 /**
  * @brief This function takes the client context and a string for the handle
  *  and returns the address of the allocated GeneralizedColumnHandle
@@ -22,7 +48,7 @@ GeneralizedColumnHandle* add_result_column(ClientContext* context, const char* h
     }
     // copy the name
     strcpy(context->chandle_table[context->chandles_in_use].name, handle);
-    return &context->chandle_table[context->chandles_in_use];
+    return &context->chandle_table[context->chandles_in_use++];
 }
 
 /**

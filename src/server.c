@@ -70,7 +70,6 @@ void send_to_client(int client_socket, message* msg, char* response){
     }
 }
 
-
 /**
  * @brief This function takes in a column and returns its values as a string
  * that can later be parsed
@@ -111,6 +110,13 @@ int val_to_str(
                 DEFAULT_QUERY_BUFFER_SIZE - char_idx,
                 "%ld",
                 ((long*) data_ptr)[row_idx]
+            );
+        case INDEX:
+            return snprintf(
+                &response[char_idx],
+                DEFAULT_QUERY_BUFFER_SIZE - char_idx,
+                "%zu",
+                ((size_t*) data_ptr)[row_idx]
             );
         default:
             return -1;
@@ -358,7 +364,17 @@ void handle_client(int client_socket) {
         }
     } while (!done);
 
-    // TODO: free the client context correctly
+    // free all of the generalized_columns and their results
+    for (int i = 0; i < client_context->chandles_in_use; i++) {
+        GeneralizedColumnHandle* gcolh = &client_context->chandle_table[i];
+        if(gcolh->generalized_column.column_pointer.result != NULL) {
+            free(gcolh->generalized_column.column_pointer.result->payload);
+            free(gcolh->generalized_column.column_pointer.result);
+        }
+    }
+    // free the table of generalized columns
+    free(client_context->chandle_table);
+    // free the client context
     free(client_context);
     log_info("-- Connection closed at socket %d!\n", client_socket);
     close(client_socket);

@@ -604,7 +604,7 @@ void set_bounds(char* range_str, Comparator* comp, Status* status) {
 }
 
 /**
- * @brief This function takes the string
+ * @brief This function takes the string for a selection and parses it
  *
  * @param query_command
  * @param context
@@ -630,6 +630,7 @@ DbOperator* parse_select(char* query_command, ClientContext* context, Status* st
     DbOperator* db_query = malloc(sizeof(DbOperator));
     db_query->type = SELECT;
     // make space for the generalized column
+    // TODO: do we need to use a generalized column?
     GeneralizedColumn* gcol = malloc(sizeof(GeneralizedColumn));
     // generalized column
     if (strchr(token, '.')) {
@@ -648,12 +649,23 @@ DbOperator* parse_select(char* query_command, ClientContext* context, Status* st
         token = next_token(&query_command, &status->msg_type);
         // get the result column
         gcol->column_pointer.result = get_result(context, token, status);
+        // make sure the two columns have the same length
+        if(db_query->operator_fields.select_operator.pos_col &&
+                gcol->column_pointer.result &&
+                (db_query->operator_fields.select_operator.pos_col->num_tuples !=
+                 gcol->column_pointer.result->num_tuples)){
+            // mark this as an eror
+            status->code = ERROR;
+            status->msg_type = QUERY_UNSUPPORTED;
+            status->msg = "Selects cannot have different lengths";
+        }
     }
     if (status->code != OK) {
         free(gcol);
         free(db_query);
         return NULL;
     }
+
     // set the bounds on the query
     set_bounds(
         query_command,
@@ -664,6 +676,34 @@ DbOperator* parse_select(char* query_command, ClientContext* context, Status* st
     return db_query;
 }
 
+DbOperator* parse_fetch(char* query_command, ClientContext* context, Status* status) {
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        return NULL;
+    }
+    // cut off the parens
+    query_command = trim_parenthesis(query_command);
+    // move the token
+    char* token = next_token(&query_command, &status->msg_type);
+    if (status->msg_type == INCORRECT_FORMAT) {
+        status->code = ERROR;
+        return NULL;
+    }
+    // create space for the operator
+    DbOperator* db_query = malloc(sizeof(DbOperator));
+    db_query->type = FETCH;
+    // set the fetch
+    db_query->operator_fields.fetch_operator.from_col = get_col_from_string(token, status);
+    db_query->operator_fields.fetch_operator.idx_col = get_result(context, query_command, status);
+
+    // make space for the generalized column
+    if (status->code != OK) {
+        free(db_query);
+        return NULL;
+    }
+    return db_query;
+}
 
 /**
  * parse_command takes as input:
@@ -697,6 +737,14 @@ DbOperator* parse_command(
         // handle exists, store here.
         *equals_pointer = '\0';
         handle = trim_whitespace(handle);
+        if (get_result(context, handle, internal_status)) {
+            internal_status->code = ERROR;
+            internal_status->msg_type = QUERY_UNSUPPORTED;
+            return NULL;
+        } else {
+            internal_status->code = OK;
+            internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
+        }
         cs165_log(stdout, "FILE HANDLE: %s\n", handle);
         query_command = ++equals_pointer;
     } else {
@@ -721,9 +769,10 @@ DbOperator* parse_command(
         query_command += 6;
         dbo = parse_select(query_command, context, internal_status);
         dbo->operator_fields.select_operator.comparator.handle = handle;
-    } else if (strncmp(query_command, "fetch", 6) == 0) {
-        query_command += 6;
-        /* dbo = parse_fetch(query_command, internal_status); */
+    } else if (strncmp(query_command, "fetch", 5) == 0) {
+        query_command += 5;
+        dbo = parse_fetch(query_command, context, internal_status);
+        dbo->operator_fields.fetch_operator.handle = handle;
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         // TODO: pass client context to print

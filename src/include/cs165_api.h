@@ -54,7 +54,7 @@ typedef enum DataType {
      INT,
      LONG,
      FLOAT,
-     BITVECTOR
+     INDEX,
 } DataType;
 
 
@@ -251,19 +251,26 @@ typedef struct SelectOperator {
     Comparator comparator;
 } SelectOperator;
 
+typedef struct FetchOperator {
+    Result* idx_col;
+    Column* from_col;
+    char* handle;
+} FetchOperator;
+
 // TODO: use this
 typedef struct CreateOperator {
     char* db_name[MAX_SIZE_NAME];
     char* table_name[MAX_SIZE_NAME];
     char* column_name[MAX_SIZE_NAME];
 } CreateOperator;
-/*
+/**
  * union type holding the fields of any operator
  */
 typedef union OperatorFields {
     InsertOperator insert_operator;
     OpenOperator open_operator;
     SelectOperator select_operator;
+    FetchOperator fetch_operator;
     PrintOperator print_operator;
 } OperatorFields;
 

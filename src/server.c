@@ -186,7 +186,6 @@ void print_to_client(
                 // end the string
                 response[char_idx] = '\0';
                 char_idx = 0;
-                // TODO: dump string
                 msg->length = DEFAULT_QUERY_BUFFER_SIZE;
                 msg->payload = response;
                 send_to_client(client_socket, msg, response);
@@ -222,7 +221,6 @@ void print_to_client(
                 // end the string
                 response[char_idx] = '\0';
                 char_idx = 0;
-                // TODO: dump string
                 msg->length = DEFAULT_QUERY_BUFFER_SIZE;
                 msg->payload = response;
                 send_to_client(client_socket, msg, response);

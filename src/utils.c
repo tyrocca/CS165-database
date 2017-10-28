@@ -125,7 +125,7 @@ size_t npow2(size_t n) {
  * To see info output, define LOG_INFO
  */
 void cs165_log(FILE* out, const char *format, ...) {
-#ifdef LOG
+#if LOG
     va_list v;
     va_start(v, format);
     vfprintf(out, format, v);
@@ -137,7 +137,7 @@ void cs165_log(FILE* out, const char *format, ...) {
 }
 
 void log_err(const char *format, ...) {
-#ifdef LOG_ERR
+#if LOG_ERR
     va_list v;
     va_start(v, format);
     fprintf(stderr, ANSI_COLOR_RED);
@@ -150,7 +150,7 @@ void log_err(const char *format, ...) {
 }
 
 void log_info(const char *format, ...) {
-#ifdef LOG_INFO
+#if LOG_INFO
     va_list v;
     va_start(v, format);
     fprintf(stdout, ANSI_COLOR_GREEN);

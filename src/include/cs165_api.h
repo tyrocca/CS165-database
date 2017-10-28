@@ -205,7 +205,7 @@ typedef struct Comparator {
     GeneralizedColumn* gen_col;
     ComparatorType type1;
     ComparatorType type2;
-    char* handle;
+    char handle[HANDLE_MAX_SIZE];
 } Comparator;
 
 /*
@@ -254,7 +254,7 @@ typedef struct SelectOperator {
 typedef struct FetchOperator {
     Result* idx_col;
     Column* from_col;
-    char* handle;
+    char handle[HANDLE_MAX_SIZE];
 } FetchOperator;
 
 // TODO: use this

@@ -7,19 +7,19 @@
 /**
  * @brief This function gets a result column from the client
  *
- * @param client
+ * @param context
  * @param result_name
  * @param status
  *
  * @return
  */
-Result* get_result(ClientContext* client, const char* result_name, Status* status) {
+Result* get_result(ClientContext* context, const char* result_name, Status* status) {
     // this try to find matching column (speed improvements here)
-    for (int i = 0; i < client->chandles_in_use; i++) {
-        if(strcmp(client->chandle_table[i].name, result_name) == 0) {
+    for (int i = 0; i < context->chandles_in_use; i++) {
+        if(strcmp(context->chandle_table[i].name, result_name) == 0) {
             status->code = OK;
             status->msg = "Result Found";
-            return client->chandle_table[i].generalized_column.column_pointer.result;
+            return context->chandle_table[i].generalized_column.column_pointer.result;
         }
     }
     // if it didn't return we know that we had an error

@@ -412,7 +412,7 @@ DbOperator* parse_insert(char* query_command, Status* status) {
             status->msg_type = INCORRECT_FORMAT;
             status->code = ERROR;
             status->msg = "Wrong number of values for row";
-            free (dbo);
+            free(dbo);
             return NULL;
         }
         return dbo;
@@ -493,7 +493,7 @@ void parse_load(char* query_command, Status* status) {
  *
  * @return DbOperator - the operation to be done
  */
-DbOperator* parse_print(char* query_command, ClientContext* client, Status* status) {
+DbOperator* parse_print(char* query_command, ClientContext* context, Status* status) {
     // make sure we have the correct thing
     // TODO: group these checks for the brackets
     if (strncmp(query_command, "(", 1) != 0) {
@@ -546,7 +546,7 @@ DbOperator* parse_print(char* query_command, ClientContext* client, Status* stat
             }
         } else {
             Result* rcol = NULL;
-            if ((rcol = get_result(client, token, status)) == NULL) {
+            if ((rcol = get_result(context, token, status)) == NULL) {
                 break;
             }
             print_objects[ncols++].column_pointer.result = rcol;
@@ -768,11 +768,15 @@ DbOperator* parse_command(
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
         dbo = parse_select(query_command, context, internal_status);
-        dbo->operator_fields.select_operator.comparator.handle = handle;
+        if (dbo) {
+            strcpy(dbo->operator_fields.select_operator.comparator.handle, handle);
+        }
     } else if (strncmp(query_command, "fetch", 5) == 0) {
         query_command += 5;
         dbo = parse_fetch(query_command, context, internal_status);
-        dbo->operator_fields.fetch_operator.handle = handle;
+        if (dbo) {
+            strcpy(dbo->operator_fields.fetch_operator.handle, handle);
+        }
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         // TODO: pass client context to print

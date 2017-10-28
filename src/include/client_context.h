@@ -4,7 +4,7 @@
 #include "cs165_api.h"
 
 Result* get_result(
-    ClientContext* client,
+    ClientContext* context,
     const char* result_name,
     Status* status
 );

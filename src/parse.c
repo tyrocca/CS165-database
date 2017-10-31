@@ -126,6 +126,21 @@ Column* get_col_from_string(const char* string, Status* status) {
     return (Column*) process_lookup(string, COLUMN_LOOKUP, status);
 }
 
+void set_generalized_col(
+    GeneralizedColumn* gcol,
+    const char* string,
+    ClientContext* context,
+    Status* status
+) {
+    if (strchr(string, '.')) {
+        gcol->column_type = COLUMN;
+        gcol->column_pointer.column = get_col_from_string(string, status);
+    } else {
+        gcol->column_type = RESULT;
+        gcol->column_pointer.result = get_result(context, string, status);
+    }
+}
+
 /**
  * @brief Function that looks up a database struct and returns it if found
  * TODO: use this
@@ -676,6 +691,15 @@ DbOperator* parse_select(char* query_command, ClientContext* context, Status* st
     return db_query;
 }
 
+/**
+ * @brief Function that processes the fetch command
+ *
+ * @param query_command
+ * @param context
+ * @param status
+ *
+ * @return
+ */
 DbOperator* parse_fetch(char* query_command, ClientContext* context, Status* status) {
     if (strncmp(query_command, "(", 1) != 0) {
         status->code = ERROR;
@@ -697,6 +721,43 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, Status* sta
     db_query->operator_fields.fetch_operator.from_col = get_col_from_string(token, status);
     db_query->operator_fields.fetch_operator.idx_col = get_result(context, query_command, status);
 
+    // make space for the generalized column
+    if (status->code != OK) {
+        free(db_query);
+        return NULL;
+    }
+    return db_query;
+}
+
+// TODO: does this need to support the a,b = min thing?
+DbOperator* parse_math(char* query_command, ClientContext* context, Status* status) {
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        return NULL;
+    }
+    // cut off the parens
+    query_command = trim_parenthesis(query_command);
+
+    // check the number of args
+    DbOperator* db_query = malloc(sizeof(DbOperator));
+
+    // move the token
+    if (strchr(query_command, ',')) {
+        char* token = next_token(&query_command, &status->msg_type);
+        set_generalized_col(
+            &db_query->operator_fields.math_operator.gcol2,
+            token,
+            context,
+            status
+        );
+    }
+    set_generalized_col(
+        &db_query->operator_fields.math_operator.gcol1,
+        query_command,
+        context,
+        status
+    );
     // make space for the generalized column
     if (status->code != OK) {
         free(db_query);
@@ -733,11 +794,24 @@ DbOperator* parse_command(
     // this is when we have a handle
     char* equals_pointer = strchr(query_command, '=');
     char* handle = query_command;
+    char* handle_2 = NULL;
     if (equals_pointer != NULL) {
         // handle exists, store here.
         *equals_pointer = '\0';
+        query_command = ++equals_pointer;
+
+        // check for a second handle
+        if ((handle_2 = strchr(handle, ',')) != NULL) {
+            *handle_2 = '\0';
+            handle_2++;
+            handle_2 = trim_whitespace(handle);
+        }
+        // clean handle
         handle = trim_whitespace(handle);
-        if (get_result(context, handle, internal_status)) {
+        // validate that the handle doesn't already exist
+        if (get_result(context, handle, internal_status) || (
+                    handle_2 && get_result(context, handle, internal_status)
+        )) {
             internal_status->code = ERROR;
             internal_status->msg_type = QUERY_UNSUPPORTED;
             return NULL;
@@ -745,8 +819,11 @@ DbOperator* parse_command(
             internal_status->code = OK;
             internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
         }
+        // log the input handle
         cs165_log(stdout, "FILE HANDLE: %s\n", handle);
-        query_command = ++equals_pointer;
+        if (handle_2) {
+            cs165_log(stdout, "FILE HANDLE: %s\n", handle_2);
+        }
     } else {
         handle = NULL;
     }
@@ -771,12 +848,74 @@ DbOperator* parse_command(
         if (dbo) {
             strcpy(dbo->operator_fields.select_operator.comparator.handle, handle);
         }
+    // Below is some vile copied and pasted code
     } else if (strncmp(query_command, "fetch", 5) == 0) {
         query_command += 5;
         dbo = parse_fetch(query_command, context, internal_status);
         if (dbo) {
             strcpy(dbo->operator_fields.fetch_operator.handle, handle);
         }
+    } else if (strncmp(query_command, "sum", 3) == 0) {
+        query_command += 3;
+        dbo = parse_math(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            if (handle_2) {
+                strcpy(dbo->operator_fields.math_operator.handle2, handle_2);
+            }
+            dbo->type = SUM;
+        }
+    } else if (strncmp(query_command, "avg", 3) == 0) {
+        query_command += 3;
+        dbo = parse_math(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            if (handle_2) {
+                strcpy(dbo->operator_fields.math_operator.handle2, handle_2);
+            }
+            dbo->type = AVERAGE;
+        }
+    } else if (strncmp(query_command, "min", 3) == 0) {
+        query_command += 3;
+        dbo = parse_math(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            if (handle_2) {
+                strcpy(dbo->operator_fields.math_operator.handle2, handle_2);
+            }
+            dbo->type = MIN;
+        }
+    } else if (strncmp(query_command, "max", 3) == 0) {
+        query_command += 3;
+        dbo = parse_math(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            if (handle_2) {
+                strcpy(dbo->operator_fields.math_operator.handle2, handle_2);
+            }
+            dbo->type = MAX;
+        }
+    } else if (strncmp(query_command, "add", 3) == 0) {
+        query_command += 3;
+        dbo = parse_math(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            if (handle_2) {
+                strcpy(dbo->operator_fields.math_operator.handle2, handle_2);
+            }
+            dbo->type = ADD;
+        }
+    } else if (strncmp(query_command, "subtract", 8) == 0) {
+        query_command += 8;
+        dbo = parse_math(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            if (handle_2) {
+                strcpy(dbo->operator_fields.math_operator.handle2, handle_2);
+            }
+            dbo->type = SUBTRACT;
+        }
+    // end the "handle commands"
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         // TODO: pass client context to print

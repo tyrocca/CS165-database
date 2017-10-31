@@ -141,23 +141,66 @@ void process_select(SelectOperator* select_op, ClientContext* context, Status* s
 /**
  * @brief Function that given a fetch command returns the values
  *
- * @param fetch_operator
+ * @param fetch_op
  * @param context
  * @param status
  */
-void process_fetch(FetchOperator* fetch_operator, ClientContext*context, Status* status) {
-    GeneralizedColumnHandle* gcol_handle = add_result_column(
-        context,
-        fetch_operator->handle
-    );
+void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* status) {
+    GeneralizedColumnHandle* gcol_handle = add_result_column(context, fetch_op->handle);
     Result* result_col = malloc(sizeof(Result));
     result_col->data_type = INT;
-    result_col->num_tuples = fetch_operator->idx_col->num_tuples;
+    result_col->num_tuples = fetch_op->idx_col->num_tuples;
     int* values = malloc(sizeof(int) * result_col->num_tuples);
     for (size_t i = 0; i < result_col->num_tuples; i++) {
-        values[i] = fetch_operator->from_col->data[((size_t*) fetch_operator->idx_col->payload)[i]];
+        values[i] = fetch_op->from_col->data[((size_t*) fetch_op->idx_col->payload)[i]];
     }
     result_col->payload = values;
+    gcol_handle->generalized_column.column_pointer.result = result_col;
+    gcol_handle->generalized_column.column_type = RESULT;
+    status->msg_type = OK_DONE;
+}
+
+/**
+ * @brief This function sums and averages a column
+ *
+ * @param math_op
+ * @param op_type
+ * @param context
+ * @param status
+ */
+void process_sum_avg(MathOperator* math_op, OperatorType op_type, ClientContext* context, Status* status) {
+    // sum the column
+    size_t num_results = 0;
+    int* data = NULL;
+    long int* sum = malloc(sizeof(long int));
+    if (math_op->gcol1.column_type == RESULT) {
+        num_results = math_op->gcol1.column_pointer.result->num_tuples;
+        data = (int*) math_op->gcol1.column_pointer.result->payload;
+    } else {
+        num_results = *math_op->gcol1.column_pointer.column->size_ptr;
+        data = math_op->gcol1.column_pointer.column->data;
+    }
+    // add the results
+    *sum = 0;
+    for (size_t i = 0; i < num_results; i++) {
+        *sum += data[i];
+    }
+    // allocate the result column
+    Result* result_col = malloc(sizeof(Result));
+    GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
+    if (op_type == SUM) {
+        result_col->data_type = LONG;
+        result_col->num_tuples = 1;
+        result_col->payload = (void*) sum;
+    } else {
+        result_col->data_type = FLOAT;
+        float* avg = malloc(sizeof(float));
+        *avg = (float)*sum / (float) num_results;
+        result_col->num_tuples = 1;
+        result_col->payload = (void*) avg;
+        free(sum);
+    }
+
     gcol_handle->generalized_column.column_pointer.result = result_col;
     gcol_handle->generalized_column.column_type = RESULT;
     status->msg_type = OK_DONE;
@@ -186,6 +229,15 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
         case SELECT:
             process_select(
                 &query->operator_fields.select_operator,
+                query->context,
+                status
+            );
+            break;
+        case SUM:
+        case AVERAGE:
+            process_sum_avg(
+                &query->operator_fields.math_operator,
+                query->type,
                 query->context,
                 status
             );

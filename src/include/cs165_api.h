@@ -220,6 +220,7 @@ typedef enum OperatorType {
     MIN,
     MAX,
     ADD,
+    SUBTRACT,
     FETCH,
     PRINT,
     OPEN,
@@ -263,6 +264,19 @@ typedef struct CreateOperator {
     char* table_name[MAX_SIZE_NAME];
     char* column_name[MAX_SIZE_NAME];
 } CreateOperator;
+
+/**
+ * @brief This operator is used for the math functions.
+ * we will have either 1 or 2 handles and either 1 or two
+ * result columns
+ */
+typedef struct MathOperator {
+    char handle1[MAX_SIZE_NAME];  // handle for the result
+    char handle2[MAX_SIZE_NAME];  // handle for the result
+    GeneralizedColumn gcol1; //
+    GeneralizedColumn gcol2; //
+} MathOperator;
+
 /**
  * union type holding the fields of any operator
  */
@@ -272,6 +286,7 @@ typedef union OperatorFields {
     SelectOperator select_operator;
     FetchOperator fetch_operator;
     PrintOperator print_operator;
+    MathOperator math_operator;
 } OperatorFields;
 
 /*

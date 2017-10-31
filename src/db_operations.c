@@ -2,6 +2,20 @@
 #include "client_context.h"
 #include "assert.h"
 
+size_t jump_size(DataType datatype) {
+    switch(datatype) {
+        case INT:
+            return sizeof(int);
+        case LONG:
+            return sizeof(long int);
+        case FLOAT:
+            return sizeof(float);
+        case INDEX:
+            return sizeof(size_t);
+        default:
+            return 0;
+    }
+}
 /**
  * @brief This function does the insert operation on the table
  *
@@ -72,6 +86,7 @@ void select_from_col(Comparator* comp, Result* result_col) {
 
 /**
  * @brief This function takes a selection of indices from a selected column
+ *      TODO: HOW TO HANDLE TYPES
  *
  * @param comp
  * @param idx_col
@@ -90,9 +105,10 @@ void select_from_selection(Comparator*comp, Result* idx_col, Result* result_col)
         positions[result_col->num_tuples] = ((size_t*) idx_col->payload)[idx];
         // TODO: what if we are at the top bound for high? will we not get max?
         // TODO - switch to bitwise and
+        // TODO: this needs to work for longs...
         result_col->num_tuples += (
-                ((long int*)queryed_col->payload)[idx] >= comp->p_low &&
-                ((long int*)queryed_col->payload)[idx] < comp->p_high
+                ((int*)queryed_col->payload)[idx] >= comp->p_low &&
+                ((int*)queryed_col->payload)[idx] < comp->p_high
         );
     }
     // if no matches return
@@ -160,6 +176,12 @@ void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* statu
     status->msg_type = OK_DONE;
 }
 
+/////////////////////////////////
+// TODO: FIGURE OUT HOW TO ADD //
+//  FLOATS/columns that have   //
+//  different types of values  //
+/////////////////////////////////
+
 /**
  * @brief This function sums and averages a column
  *
@@ -171,6 +193,7 @@ void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* statu
 void process_sum_avg(MathOperator* math_op, OperatorType op_type, ClientContext* context, Status* status) {
     // sum the column
     size_t num_results = 0;
+    // TODO - need a way to dump this
     int* data = NULL;
     long int* sum = malloc(sizeof(long int));
     if (math_op->gcol1.column_type == RESULT) {
@@ -207,6 +230,97 @@ void process_sum_avg(MathOperator* math_op, OperatorType op_type, ClientContext*
 }
 
 /**
+ * @brief This function sums and averages a column
+ *
+ * @param math_op
+ * @param op_type
+ * @param context
+ * @param status
+ */
+void process_col_op(
+    MathOperator* math_op,
+    OperatorType op_type,
+    ClientContext* context,
+    Status* status
+) {
+    // sum the column
+    Result* result_col = malloc(sizeof(Result));
+    int* col1 = NULL;
+    int* col2 = NULL;
+    // TODO: add in validation of column lengths
+    // Columns of the same type can be added
+    if (math_op->gcol1.column_type == RESULT) {
+        result_col->num_tuples = math_op->gcol1.column_pointer.result->num_tuples;
+        col1 = (int*) math_op->gcol1.column_pointer.result->payload;
+        col2 = (int*) math_op->gcol2.column_pointer.result->payload;
+    } else {
+        result_col->num_tuples = *math_op->gcol1.column_pointer.column->size_ptr;
+        col1 = math_op->gcol1.column_pointer.column->data;
+        col2 = math_op->gcol1.column_pointer.column->data;
+    }
+    int* result_data = malloc(sizeof(int) * result_col->num_tuples);
+    if (op_type == ADD) {
+        for (size_t i = 0; i < result_col->num_tuples; i++) {
+            result_data[i] = col1[i] + col2[i];
+        }
+    } else {
+        for (size_t i = 0; i < result_col->num_tuples; i++) {
+            result_data[i] = col2[i] - col1[i];
+        }
+    }
+
+    // set the values of the database operations
+    result_col->data_type = INT;
+    result_col->payload = (void*) result_data;
+    GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
+    gcol_handle->generalized_column.column_pointer.result = result_col;
+    gcol_handle->generalized_column.column_type = RESULT;
+    status->msg_type = OK_DONE;
+}
+
+void process_min_max(
+    MathOperator* math_op,
+    OperatorType op_type,
+    ClientContext* context,
+    Status* status
+) {
+    // sum the column
+    Result* result_col = malloc(sizeof(Result));
+    int* col1 = NULL;
+    int* idx_col = NULL;
+    // TODO: add in validation of column lengths
+    // Columns of the same type can be added
+    if (math_op->gcol1.column_type == RESULT) {
+        result_col->num_tuples = math_op->gcol1.column_pointer.result->num_tuples;
+        col1 = (int*) math_op->gcol1.column_pointer.result->payload;
+        col2 = (int*) math_op->gcol2.column_pointer.result->payload;
+    } else {
+        result_col->num_tuples = *math_op->gcol1.column_pointer.column->size_ptr;
+        col1 = math_op->gcol1.column_pointer.column->data;
+        col2 = math_op->gcol1.column_pointer.column->data;
+    }
+    int* result_data = malloc(sizeof(int) * result_col->num_tuples);
+    if (op_type == ADD) {
+        for (size_t i = 0; i < result_col->num_tuples; i++) {
+            result_data[i] = col1[i] + col2[i];
+        }
+    } else {
+        for (size_t i = 0; i < result_col->num_tuples; i++) {
+            result_data[i] = col2[i] - col1[i];
+        }
+    }
+
+    // set the values of the database operations
+    result_col->data_type = INT;
+    result_col->payload = (void*) result_data;
+    GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
+    gcol_handle->generalized_column.column_pointer.result = result_col;
+    gcol_handle->generalized_column.column_type = RESULT;
+    status->msg_type = OK_DONE;
+}
+
+
+/**
  * execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation
  * possibly moved to a different file).
@@ -236,6 +350,15 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
         case SUM:
         case AVERAGE:
             process_sum_avg(
+                &query->operator_fields.math_operator,
+                query->type,
+                query->context,
+                status
+            );
+            break;
+        case ADD:
+        case SUBTRACT:
+            process_col_op(
                 &query->operator_fields.math_operator,
                 query->type,
                 query->context,

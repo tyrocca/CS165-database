@@ -740,11 +740,12 @@ DbOperator* parse_math(char* query_command, ClientContext* context, Status* stat
     query_command = trim_parenthesis(query_command);
 
     // check the number of args
-    DbOperator* db_query = malloc(sizeof(DbOperator));
+    DbOperator* db_query = calloc(1, sizeof(DbOperator));
 
     // move the token
+    char* token = strchr(query_command, ',');
     if (strchr(query_command, ',')) {
-        char* token = next_token(&query_command, &status->msg_type);
+        token = next_token(&query_command, &status->msg_type);
         set_generalized_col(
             &db_query->operator_fields.math_operator.gcol2,
             token,
@@ -814,6 +815,7 @@ DbOperator* parse_command(
         )) {
             internal_status->code = ERROR;
             internal_status->msg_type = QUERY_UNSUPPORTED;
+            internal_status->msg = "Column already exists";
             return NULL;
         } else {
             internal_status->code = OK;

@@ -1,21 +1,75 @@
+#include <limits.h>
+#include <assert.h>
 #include "db_operations.h"
 #include "client_context.h"
-#include "assert.h"
 
-size_t jump_size(DataType datatype) {
-    switch(datatype) {
+/**
+ * @brief This function takes in a data_type and returns the size of the
+ * data type (useful for malloc)
+ *
+ * @param data_type
+ *
+ * @return
+ */
+size_t type_to_size(DataType data_type) {
+    switch (data_type) {
         case INT:
             return sizeof(int);
+        case DOUBLE:
+            return sizeof(double);
         case LONG:
             return sizeof(long int);
-        case FLOAT:
-            return sizeof(float);
         case INDEX:
-            return sizeof(size_t);
+            return sizeof(double);
         default:
             return 0;
     }
 }
+
+/**
+ * @brief This function will return a col val at an index
+ * and returns it as a double
+ *
+ * @param data_ptr
+ * @param idx
+ *
+ * @return double
+ */
+double col_val_as_double(void* data_ptr, DataType data_type, size_t idx) {
+    switch (data_type) {
+        case INT:
+            return (double) ((int*) data_ptr)[idx];
+        case DOUBLE:
+            return ((double*) data_ptr)[idx];
+        case LONG:
+            return (double) ((int*) data_ptr)[idx];
+        default:
+            return 0;
+    }
+}
+
+/**
+ * @brief This function will return a col va at an index
+ * and returns it as a long
+ *
+ * @param data_ptr
+ * @param idx
+ *
+ * @return long
+ */
+long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
+    switch (data_type) {
+        case INT:
+            return (long) ((int*) data_ptr)[idx];
+        case DOUBLE:
+            return (long) ((double*) data_ptr)[idx];
+        case LONG:
+            return ((long*) data_ptr)[idx];
+        default:
+            return 0;
+    }
+}
+
 /**
  * @brief This function does the insert operation on the table
  *
@@ -47,7 +101,8 @@ char* process_insert(InsertOperator insert_op, Status* status) {
  * @return
  */
 char* process_open(OpenOperator open_op, Status* status) {
-    // TODO: implement process open
+    // TODO: implement process open - this is an extra, all it
+    // does is implement multiple databases
     (void) open_op;
     (void) status;
     return NULL;
@@ -86,7 +141,7 @@ void select_from_col(Comparator* comp, Result* result_col) {
 
 /**
  * @brief This function takes a selection of indices from a selected column
- *      TODO: HOW TO HANDLE TYPES
+ *      TODO: HOW TO HANDLE TYPES - not needed currently
  *
  * @param comp
  * @param idx_col
@@ -155,7 +210,8 @@ void process_select(SelectOperator* select_op, ClientContext* context, Status* s
 }
 
 /**
- * @brief Function that given a fetch command returns the values
+ * @brief Function that given a fetch command returns the values. This
+ * function takes in a database column and returns a column of ints
  *
  * @param fetch_op
  * @param context
@@ -176,11 +232,42 @@ void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* statu
     status->msg_type = OK_DONE;
 }
 
-/////////////////////////////////
-// TODO: FIGURE OUT HOW TO ADD //
-//  FLOATS/columns that have   //
-//  different types of values  //
-/////////////////////////////////
+//////////////////
+//  Aggregrates //
+//////////////////
+
+/**
+ * @brief Function that sums up a column
+ *
+ * @param data_type
+ * @param data
+ * @param data_size
+ *
+ * @return long
+ */
+long int calculate_sum(DataType data_type, void* data, size_t data_size) {
+    long int sum = 0;
+    DataPtr data_ptr = { .void_array = data };
+    switch (data_type) {
+        case INT:
+            for (size_t i = 0; i < data_size; i++) {
+                sum += data_ptr.int_array[i];
+            }
+            break;
+        case DOUBLE:
+            for (size_t i = 0; i < data_size; i++) {
+                sum += data_ptr.double_array[i];
+            }
+            break;
+        case LONG:
+            for (size_t i = 0; i < data_size; i++) {
+                sum += data_ptr.long_array[i];
+            }
+        default:
+            break;
+    }
+    return sum;
+}
 
 /**
  * @brief This function sums and averages a column
@@ -191,35 +278,34 @@ void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* statu
  * @param status
  */
 void process_sum_avg(MathOperator* math_op, OperatorType op_type, ClientContext* context, Status* status) {
-    // sum the column
-    size_t num_results = 0;
-    // TODO - need a way to dump this
-    int* data = NULL;
     long int* sum = malloc(sizeof(long int));
+    size_t num_results = 0;
     if (math_op->gcol1.column_type == RESULT) {
         num_results = math_op->gcol1.column_pointer.result->num_tuples;
-        data = (int*) math_op->gcol1.column_pointer.result->payload;
+        *sum = calculate_sum(
+            math_op->gcol1.column_pointer.result->data_type,
+            math_op->gcol1.column_pointer.result->payload,
+            num_results
+        );
     } else {
         num_results = *math_op->gcol1.column_pointer.column->size_ptr;
-        data = math_op->gcol1.column_pointer.column->data;
-    }
-    // add the results
-    *sum = 0;
-    for (size_t i = 0; i < num_results; i++) {
-        *sum += data[i];
+        *sum = calculate_sum(
+            INT,
+            (void*) math_op->gcol1.column_pointer.column->data,
+            num_results
+        );
     }
     // allocate the result column
     Result* result_col = malloc(sizeof(Result));
+    result_col->num_tuples = 1;
     GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
     if (op_type == SUM) {
         result_col->data_type = LONG;
-        result_col->num_tuples = 1;
         result_col->payload = (void*) sum;
     } else {
-        result_col->data_type = FLOAT;
-        float* avg = malloc(sizeof(float));
-        *avg = (float)*sum / (float) num_results;
-        result_col->num_tuples = 1;
+        result_col->data_type = DOUBLE;
+        double* avg = malloc(sizeof(double));
+        *avg = (double)*sum / (double) num_results;
         result_col->payload = (void*) avg;
         free(sum);
     }
@@ -229,8 +315,74 @@ void process_sum_avg(MathOperator* math_op, OperatorType op_type, ClientContext*
     status->msg_type = OK_DONE;
 }
 
+
 /**
- * @brief This function sums and averages a column
+ * @brief This function combines column (by added or subtracting values)
+ *
+ * @param op_type
+ * @param num_values
+ * @param col1
+ * @param col1_type
+ * @param col2
+ * @param col2_type
+ *
+ * @return
+ */
+void combine_columns(
+    OperatorType op_type,
+    Result* result_col,
+    void* col1,
+    DataType col1_type,
+    void* col2,
+    DataType col2_type
+) {
+    DataPtr result_data;
+    size_t num_values = result_col->num_tuples;
+    if (col1_type == DOUBLE || col2_type == DOUBLE) {
+        result_col->data_type = DOUBLE;
+        // TODO: should check if this exceeds size_t max
+        result_data.void_array = malloc(num_values * type_to_size(DOUBLE));
+        if (op_type == ADD) {
+            for (size_t i = 0; i < num_values; i++) {
+                result_data.double_array[i] = (
+                    col_val_as_double(col1, col1_type, i) +
+                    col_val_as_double(col2, col2_type, i)
+                );
+            }
+        } else {
+            for (size_t i = 0; i < num_values; i++) {
+                result_data.double_array[i] = (
+                    col_val_as_double(col1, col1_type, i) -
+                    col_val_as_double(col2, col2_type, i)
+                );
+            }
+        }
+    } else {
+        result_col->data_type = LONG;
+        result_data.void_array = malloc(num_values * type_to_size(LONG));
+        if (op_type == ADD) {
+            for (size_t i = 0; i < num_values; i++) {
+                result_data.long_array[i] = (
+                    col_val_as_long(col1, col1_type, i) +
+                    col_val_as_long(col2, col2_type, i)
+                );
+            }
+        } else {
+            for (size_t i = 0; i < num_values; i++) {
+                result_data.long_array[i] = (
+                    col_val_as_long(col1, col1_type, i) -
+                    col_val_as_long(col2, col2_type, i)
+                );
+            }
+        }
+    }
+    result_col->payload = result_data.void_array;
+    return;
+}
+
+/**
+ * @brief This function takes in two columns and adds or subtracts them into
+ * the correct column type
  *
  * @param math_op
  * @param op_type
@@ -243,42 +395,127 @@ void process_col_op(
     ClientContext* context,
     Status* status
 ) {
-    // sum the column
+    // check that we were given two columns (we can just check the
+    // values for result as both are pointers)
+    if (math_op->gcol1.column_pointer.result == NULL ||
+            math_op->gcol2.column_pointer.result == NULL) {
+        status->msg_type = QUERY_UNSUPPORTED;
+        status->msg = "Two vectors are needed";
+        status->code = ERROR;
+        return;
+    }
+
     Result* result_col = malloc(sizeof(Result));
-    int* col1 = NULL;
-    int* col2 = NULL;
-    // TODO: add in validation of column lengths
-    // Columns of the same type can be added
+    // Columns of the same length can be added
     if (math_op->gcol1.column_type == RESULT) {
         result_col->num_tuples = math_op->gcol1.column_pointer.result->num_tuples;
-        col1 = (int*) math_op->gcol1.column_pointer.result->payload;
-        col2 = (int*) math_op->gcol2.column_pointer.result->payload;
+        if (math_op->gcol2.column_pointer.result->num_tuples != result_col->num_tuples) {
+            status->msg_type = QUERY_UNSUPPORTED;
+            status->msg = "Different Column lengths are not allowed";
+            status->code = ERROR;
+            free(result_col);
+            return;
+        }
+        combine_columns(
+            op_type,
+            result_col,
+            math_op->gcol1.column_pointer.result->payload,
+            math_op->gcol1.column_pointer.result->data_type,
+            math_op->gcol2.column_pointer.result->payload,
+            math_op->gcol2.column_pointer.result->data_type
+        );
     } else {
         result_col->num_tuples = *math_op->gcol1.column_pointer.column->size_ptr;
-        col1 = math_op->gcol1.column_pointer.column->data;
-        col2 = math_op->gcol1.column_pointer.column->data;
-    }
-    int* result_data = malloc(sizeof(int) * result_col->num_tuples);
-    if (op_type == ADD) {
-        for (size_t i = 0; i < result_col->num_tuples; i++) {
-            result_data[i] = col1[i] + col2[i];
+        if (*math_op->gcol2.column_pointer.column->size_ptr != result_col->num_tuples) {
+            status->msg_type = QUERY_UNSUPPORTED;
+            status->msg = "Different Column lengths are not allowed";
+            status->code = ERROR;
+            return;
         }
-    } else {
-        for (size_t i = 0; i < result_col->num_tuples; i++) {
-            result_data[i] = col2[i] - col1[i];
-        }
+        combine_columns(
+            op_type,
+            result_col,
+            math_op->gcol1.column_pointer.column->data,
+            INT,
+            math_op->gcol2.column_pointer.column->data,
+            INT
+        );
     }
 
     // set the values of the database operations
-    result_col->data_type = INT;
-    result_col->payload = (void*) result_data;
     GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
     gcol_handle->generalized_column.column_pointer.result = result_col;
     gcol_handle->generalized_column.column_type = RESULT;
     status->msg_type = OK_DONE;
 }
 
-void process_min_max(
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
+/**
+ * @brief function that calculates the max
+ *
+ * @param data_type
+ * @param data
+ * @param data_size
+ *
+ * @return
+ */
+void* single_col_bound(
+    OperatorType op_type,
+    DataType data_type,
+    void* data,
+    size_t data_size
+) {
+    DataPtr data_ptr = { .void_array = data };
+    DataPtr result;
+    result.void_array = malloc(1 * type_to_size(data_type));
+    switch (data_type) {
+        case INT:
+            result.int_array[0] = data_ptr.int_array[0];
+            if (op_type == MAX) {
+                for (size_t i = 1; i < data_size; i++) {
+                    result.int_array[0] = MAX(result.int_array[0],
+                                              data_ptr.int_array[i]);
+                }
+            } else {
+                for (size_t i = 1; i < data_size; i++) {
+                    result.int_array[0] = MIN(result.int_array[0],
+                                              data_ptr.int_array[i]);
+                }
+            }
+            break;
+        case DOUBLE:
+            if (op_type == MAX) {
+                for (size_t i = 1; i < data_size; i++) {
+                    result.double_array[0] = MAX(result.double_array[0],
+                                              data_ptr.double_array[i]);
+                }
+            } else {
+                for (size_t i = 1; i < data_size; i++) {
+                    result.double_array[0] = MIN(result.double_array[0],
+                                              data_ptr.double_array[i]);
+                }
+            }
+        case LONG:
+            if (op_type == MAX) {
+                for (size_t i = 1; i < data_size; i++) {
+                    result.long_array[0] = MAX(result.long_array[0],
+                                              data_ptr.long_array[i]);
+                }
+            } else {
+                for (size_t i = 1; i < data_size; i++) {
+                    result.long_array[0] = MIN(result.long_array[0],
+                                               data_ptr.long_array[i]);
+                }
+            }
+        default:
+            break;
+    }
+    return result.void_array;
+}
+
+void get_range_value(
     MathOperator* math_op,
     OperatorType op_type,
     ClientContext* context,
@@ -286,33 +523,23 @@ void process_min_max(
 ) {
     // sum the column
     Result* result_col = malloc(sizeof(Result));
-    int* col1 = NULL;
-    int* idx_col = NULL;
-    // TODO: add in validation of column lengths
-    // Columns of the same type can be added
+    result_col->num_tuples = 1;
     if (math_op->gcol1.column_type == RESULT) {
-        result_col->num_tuples = math_op->gcol1.column_pointer.result->num_tuples;
-        col1 = (int*) math_op->gcol1.column_pointer.result->payload;
-        col2 = (int*) math_op->gcol2.column_pointer.result->payload;
+        result_col->payload = single_col_bound(
+            op_type,
+            math_op->gcol1.column_pointer.result->data_type,
+            math_op->gcol1.column_pointer.result->payload,
+            math_op->gcol1.column_pointer.result->num_tuples
+        );
     } else {
-        result_col->num_tuples = *math_op->gcol1.column_pointer.column->size_ptr;
-        col1 = math_op->gcol1.column_pointer.column->data;
-        col2 = math_op->gcol1.column_pointer.column->data;
+        result_col->payload = single_col_bound(
+            op_type,
+            INT,
+            (void*) math_op->gcol1.column_pointer.column->data,
+            *math_op->gcol1.column_pointer.column->size_ptr
+        );
     }
-    int* result_data = malloc(sizeof(int) * result_col->num_tuples);
-    if (op_type == ADD) {
-        for (size_t i = 0; i < result_col->num_tuples; i++) {
-            result_data[i] = col1[i] + col2[i];
-        }
-    } else {
-        for (size_t i = 0; i < result_col->num_tuples; i++) {
-            result_data[i] = col2[i] - col1[i];
-        }
-    }
-
     // set the values of the database operations
-    result_col->data_type = INT;
-    result_col->payload = (void*) result_data;
     GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
     gcol_handle->generalized_column.column_pointer.result = result_col;
     gcol_handle->generalized_column.column_type = RESULT;
@@ -364,6 +591,18 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
                 query->context,
                 status
             );
+            break;
+        case MIN:
+        case MAX:
+            // if one col
+            if (query->operator_fields.math_operator.gcol2.column_pointer.result == NULL) {
+                get_range_value(
+                    &query->operator_fields.math_operator,
+                    query->type,
+                    query->context,
+                    status
+                );
+            }
             break;
         case FETCH:
             process_fetch(

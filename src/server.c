@@ -97,12 +97,12 @@ int val_to_str(
                 "%d",
                 ((int*) data_ptr)[row_idx]
             );
-        case FLOAT:
+        case DOUBLE:
             return snprintf(
                 &response[char_idx],
                 DEFAULT_QUERY_BUFFER_SIZE - char_idx,
-                "%f",
-                ((float*) data_ptr)[row_idx]
+                "%lf",
+                ((double*) data_ptr)[row_idx]
             );
         case LONG:
             return snprintf(

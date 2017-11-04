@@ -53,10 +53,26 @@ SOFTWARE.
 typedef enum DataType {
      INT,
      LONG,
-     FLOAT,
+     DOUBLE,
      INDEX,
 } DataType;
 
+typedef union DataPtr {
+    int* int_array;
+    long* long_array;
+    double* double_array;
+    size_t* index_array;
+    void* void_array;
+    char* char_array;
+} DataPtr;
+
+/* typedef union DataValue { */
+/*     int int_val; */
+/*     long long_val; */
+/*     double double_val; */
+/*     size_t index_val; */
+/*     char char_val; */
+/* } DataType; */
 
 struct Comparator;
 //struct ColumnIndex;

@@ -216,12 +216,12 @@ typedef struct ClientContext {
  * A comparator defines a comparison operation over a column.
  **/
 typedef struct Comparator {
+    char handle[HANDLE_MAX_SIZE];
+    GeneralizedColumn* gen_col;
     long int p_low; // used in equality and ranges.
     long int p_high; // used in range compares.
-    GeneralizedColumn* gen_col;
     ComparatorType type1;
     ComparatorType type2;
-    char handle[HANDLE_MAX_SIZE];
 } Comparator;
 
 /*
@@ -287,8 +287,8 @@ typedef struct CreateOperator {
  * result columns
  */
 typedef struct MathOperator {
-    char handle1[MAX_SIZE_NAME];  // handle for the result
-    char handle2[MAX_SIZE_NAME];  // handle for the result
+    char handle1[HANDLE_MAX_SIZE];  // handle for the result
+    char handle2[HANDLE_MAX_SIZE];  // handle for the result
     GeneralizedColumn gcol1; //
     GeneralizedColumn gcol2; //
 } MathOperator;

@@ -743,16 +743,19 @@ DbOperator* parse_math(char* query_command, ClientContext* context, Status* stat
     DbOperator* db_query = calloc(1, sizeof(DbOperator));
 
     // move the token
-    char* token = strchr(query_command, ',');
-    if (strchr(query_command, ',')) {
-        token = next_token(&query_command, &status->msg_type);
+    if (strncmp(query_command, "null,", 5) == 0) {
+        query_command += 5;
+    } else if (strchr(query_command, ',')) {
+        char* token = next_token(&query_command, &status->msg_type);
         set_generalized_col(
             &db_query->operator_fields.math_operator.gcol2,
-            token,
+            query_command,
             context,
             status
         );
+        query_command = token;
     }
+    // here we set the params of the generalized column
     set_generalized_col(
         &db_query->operator_fields.math_operator.gcol1,
         query_command,

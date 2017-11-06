@@ -449,6 +449,7 @@ void process_col_op(
     status->msg_type = OK_DONE;
 }
 
+// Min and Max helper functions
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
@@ -486,6 +487,7 @@ void* single_col_bound(
             }
             break;
         case DOUBLE:
+            result.double_array[0] = data_ptr.double_array[0];
             if (op_type == MAX) {
                 for (size_t i = 1; i < data_size; i++) {
                     result.double_array[0] = MAX(result.double_array[0],
@@ -497,7 +499,9 @@ void* single_col_bound(
                                               data_ptr.double_array[i]);
                 }
             }
+            break;
         case LONG:
+            result.long_array[0] = data_ptr.long_array[0];
             if (op_type == MAX) {
                 for (size_t i = 1; i < data_size; i++) {
                     result.long_array[0] = MAX(result.long_array[0],
@@ -509,12 +513,21 @@ void* single_col_bound(
                                                data_ptr.long_array[i]);
                 }
             }
+            break;
         default:
             break;
     }
     return result.void_array;
 }
 
+/**
+ * @brief This function processes the min and max for a single column
+ *
+ * @param math_op
+ * @param op_type
+ * @param context
+ * @param status
+ */
 void get_range_value(
     MathOperator* math_op,
     OperatorType op_type,
@@ -525,22 +538,145 @@ void get_range_value(
     Result* result_col = malloc(sizeof(Result));
     result_col->num_tuples = 1;
     if (math_op->gcol1.column_type == RESULT) {
+        result_col->data_type = math_op->gcol1.column_pointer.result->data_type;
         result_col->payload = single_col_bound(
             op_type,
-            math_op->gcol1.column_pointer.result->data_type,
+            result_col->data_type,
             math_op->gcol1.column_pointer.result->payload,
             math_op->gcol1.column_pointer.result->num_tuples
         );
     } else {
+        result_col->data_type = INT;
         result_col->payload = single_col_bound(
             op_type,
-            INT,
+            result_col->data_type,
             (void*) math_op->gcol1.column_pointer.column->data,
             *math_op->gcol1.column_pointer.column->size_ptr
         );
     }
     // set the values of the database operations
     GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
+    gcol_handle->generalized_column.column_pointer.result = result_col;
+    gcol_handle->generalized_column.column_type = RESULT;
+    status->msg_type = OK_DONE;
+}
+
+/**
+ * @brief This function takes in the operations, the column and its indices
+ *  and return the columns values
+ *
+ * @param op_type
+ * @param data_type
+ * @param data
+ * @param indices
+ * @param data_size
+ * @param rcol_vals
+ * @param rcol_idx
+ *
+ * @return
+ */
+void col_bound_and_index(
+    OperatorType op_type,
+    DataType data_type,
+    void* data,
+    void* indices,
+    size_t data_size,
+    Result* rcol_vals,
+    Result* rcol_idx
+) {
+    DataPtr data_ptr = { .void_array = data };
+    DataPtr index_ptr = { .void_array = indices };
+    DataPtr result, result_indices;
+    result.void_array = malloc(data_size * type_to_size(data_type));
+    result_indices.index_array = malloc(data_size * type_to_size(INDEX));
+    size_t num_results = 1;
+    /*
+     * For each type we have an array of data
+     */
+    switch (data_type) {
+        case INT:
+            result.int_array[0] = data_ptr.int_array[0];
+            if (op_type == MAX) {
+                for (size_t i = 1; i < data_size; i++) {
+                    if (data_ptr.int_array[i] >= result.int_array[0]) {
+                        // if we have a new max, then reset
+                        if (data_ptr.int_array[i] > result.int_array[0]) {
+                            num_results = 0;
+                        }
+                        // add to the array and update the index array
+                        result.int_array[num_results] = data_ptr.int_array[i];
+                        result_indices.index_array[num_results++] = (
+                            index_ptr.index_array ?  data_ptr.index_array[i] : i
+                        );
+                    }
+                }
+            }
+            break;
+        default:
+            break;
+    }
+
+    // set the result values
+    rcol_vals->num_tuples = rcol_idx->num_tuples = num_results;
+    rcol_vals->payload = (void*) realloc(result.void_array,
+                                         num_results * type_to_size(data_type));
+    rcol_idx->payload = (void*) realloc(result_indices.void_array,
+                                         num_results * type_to_size(INDEX));
+    return;
+}
+
+/**
+ * @brief This function returns the min / max and returns the column
+ *
+ * @param math_op
+ * @param op_type
+ * @param context
+ * @param status
+ */
+void get_index_and_range(
+    MathOperator* math_op,
+    OperatorType op_type,
+    ClientContext* context,
+    Status* status
+) {
+    // sum the column
+    Result* result_col = malloc(sizeof(Result));
+    Result* result_indices = malloc(sizeof(Result));
+    result_indices->data_type = INDEX;
+
+
+    // we just swap the pointers, as we know that this is ok
+    if (math_op->gcol1.column_type == RESULT) {
+        // neither of these should be null
+        assert(math_op->gcol1.column_pointer.result != NULL);
+        assert(math_op->gcol2.column_pointer.result != NULL);
+        assert(math_op->gcol2.column_pointer.result != NULL);
+        col_bound_and_index(
+            op_type,
+            math_op->gcol2.column_pointer.result->data_type,
+            math_op->gcol2.column_pointer.result->payload,
+            math_op->gcol1.column_pointer.result->payload,
+            math_op->gcol2.column_pointer.result->num_tuples,
+            result_col,
+            result_indices
+        );
+    } else {
+        col_bound_and_index(
+            op_type,
+            INT,
+            (void*) math_op->gcol2.column_pointer.column->data,
+            NULL,
+            *math_op->gcol1.column_pointer.column->size_ptr,
+            result_col,
+            result_indices
+        );
+    }
+    // set the index handle
+    GeneralizedColumnHandle* index_handle = add_result_column(context, math_op->handle1);
+    index_handle->generalized_column.column_pointer.result = result_col;
+    index_handle->generalized_column.column_type = RESULT;
+    // set the column handle
+    GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle2);
     gcol_handle->generalized_column.column_pointer.result = result_col;
     gcol_handle->generalized_column.column_type = RESULT;
     status->msg_type = OK_DONE;
@@ -595,8 +731,15 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
         case MIN:
         case MAX:
             // if one col
-            if (query->operator_fields.math_operator.gcol2.column_pointer.result == NULL) {
+            if (query->operator_fields.math_operator.handle2[0] == '\0') {
                 get_range_value(
+                    &query->operator_fields.math_operator,
+                    query->type,
+                    query->context,
+                    status
+                );
+            } else {
+                get_index_and_range(
                     &query->operator_fields.math_operator,
                     query->type,
                     query->context,

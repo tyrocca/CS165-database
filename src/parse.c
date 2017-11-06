@@ -808,7 +808,7 @@ DbOperator* parse_command(
         if ((handle_2 = strchr(handle, ',')) != NULL) {
             *handle_2 = '\0';
             handle_2++;
-            handle_2 = trim_whitespace(handle);
+            handle_2 = trim_whitespace(handle_2);
         }
         // clean handle
         handle = trim_whitespace(handle);
@@ -825,9 +825,9 @@ DbOperator* parse_command(
             internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
         }
         // log the input handle
-        cs165_log(stdout, "FILE HANDLE: %s\n", handle);
+        cs165_log(stdout, "FILE HANDLE 1: %s\n", handle);
         if (handle_2) {
-            cs165_log(stdout, "FILE HANDLE: %s\n", handle_2);
+            cs165_log(stdout, "FILE HANDLE 2: %s\n", handle_2);
         }
     } else {
         handle = NULL;

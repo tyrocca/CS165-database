@@ -349,6 +349,11 @@ void handle_client(int client_socket) {
             if (!print_op) {
                 // process the internal_status of the message
                 send_message.length = strlen(internal_status.msg);
+                // TODO: enable printing of messages
+                /* if (strncmp(send_message, "--", 2) != 0) { */
+                /*     send_message.length += 3; */
+                /*     send_message */
+                /* } */
                 char send_buffer[send_message.length + 1];
                 strcpy(send_buffer, internal_status.msg);
                 send_message.payload = send_buffer;

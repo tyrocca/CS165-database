@@ -606,7 +606,85 @@ void col_bound_and_index(
                         // add to the array and update the index array
                         result.int_array[num_results] = data_ptr.int_array[i];
                         result_indices.index_array[num_results++] = (
-                            index_ptr.index_array ?  data_ptr.index_array[i] : i
+                            index_ptr.index_array ? index_ptr.index_array[i] : i
+                        );
+                    }
+                }
+            } else {
+                for (size_t i = 1; i < data_size; i++) {
+                    if (data_ptr.int_array[i] <= result.int_array[0]) {
+                        // if we have a new max, then reset
+                        if (data_ptr.int_array[i] < result.int_array[0]) {
+                            num_results = 0;
+                        }
+                        // add to the array and update the index array
+                        result.int_array[num_results] = data_ptr.int_array[i];
+                        result_indices.index_array[num_results++] = (
+                            index_ptr.index_array ? index_ptr.index_array[i] : i
+                        );
+                    }
+                }
+            }
+            break;
+        case DOUBLE:
+            result.double_array[0] = data_ptr.double_array[0];
+            if (op_type == MAX) {
+                for (size_t i = 1; i < data_size; i++) {
+                    if (data_ptr.double_array[i] >= result.double_array[0]) {
+                        // if we have a new max, then reset
+                        if (data_ptr.double_array[i] > result.double_array[0]) {
+                            num_results = 0;
+                        }
+                        // add to the array and update the index array
+                        result.double_array[num_results] = data_ptr.double_array[i];
+                        result_indices.index_array[num_results++] = (
+                            index_ptr.index_array ? index_ptr.index_array[i] : i
+                        );
+                    }
+                }
+            } else {
+                for (size_t i = 1; i < data_size; i++) {
+                    if (data_ptr.double_array[i] <= result.double_array[0]) {
+                        // if we have a new max, then reset
+                        if (data_ptr.double_array[i] < result.double_array[0]) {
+                            num_results = 0;
+                        }
+                        // add to the array and update the index array
+                        result.double_array[num_results] = data_ptr.double_array[i];
+                        result_indices.index_array[num_results++] = (
+                            index_ptr.index_array ? index_ptr.index_array[i] : i
+                        );
+                    }
+                }
+            }
+            break;
+        case LONG:
+            result.long_array[0] = data_ptr.long_array[0];
+            if (op_type == MAX) {
+                for (size_t i = 1; i < data_size; i++) {
+                    if (data_ptr.long_array[i] >= result.long_array[0]) {
+                        // if we have a new max, then reset
+                        if (data_ptr.long_array[i] > result.long_array[0]) {
+                            num_results = 0;
+                        }
+                        // add to the array and update the index array
+                        result.long_array[num_results] = data_ptr.long_array[i];
+                        result_indices.index_array[num_results++] = (
+                            index_ptr.index_array ? index_ptr.index_array[i] : i
+                        );
+                    }
+                }
+            } else {
+                for (size_t i = 1; i < data_size; i++) {
+                    if (data_ptr.long_array[i] <= result.long_array[0]) {
+                        // if we have a new max, then reset
+                        if (data_ptr.long_array[i] < result.long_array[0]) {
+                            num_results = 0;
+                        }
+                        // add to the array and update the index array
+                        result.long_array[num_results] = data_ptr.long_array[i];
+                        result_indices.index_array[num_results++] = (
+                            index_ptr.index_array ? index_ptr.index_array[i] : i
                         );
                     }
                 }
@@ -664,7 +742,7 @@ void get_index_and_range(
         col_bound_and_index(
             op_type,
             INT,
-            (void*) math_op->gcol2.column_pointer.column->data,
+            (void*) math_op->gcol1.column_pointer.column->data,
             NULL,
             *math_op->gcol1.column_pointer.column->size_ptr,
             result_col,
@@ -673,7 +751,7 @@ void get_index_and_range(
     }
     // set the index handle
     GeneralizedColumnHandle* index_handle = add_result_column(context, math_op->handle1);
-    index_handle->generalized_column.column_pointer.result = result_col;
+    index_handle->generalized_column.column_pointer.result = result_indices;
     index_handle->generalized_column.column_type = RESULT;
     // set the column handle
     GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle2);

@@ -910,8 +910,8 @@ DbOperator* parse_command(
             }
             dbo->type = ADD;
         }
-    } else if (strncmp(query_command, "subtract", 8) == 0) {
-        query_command += 8;
+    } else if (strncmp(query_command, "sub", 3) == 0) {
+        query_command += 3;
         dbo = parse_math(query_command, context, internal_status);
         if (dbo) {
             strcpy(dbo->operator_fields.math_operator.handle1, handle);

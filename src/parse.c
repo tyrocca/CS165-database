@@ -812,18 +812,10 @@ DbOperator* parse_command(
         }
         // clean handle
         handle = trim_whitespace(handle);
-        // validate that the handle doesn't already exist
-        if (get_result(context, handle, internal_status) || (
-                    handle_2 && get_result(context, handle, internal_status)
-        )) {
-            internal_status->code = ERROR;
-            internal_status->msg_type = QUERY_UNSUPPORTED;
-            internal_status->msg = "Column already exists";
-            return NULL;
-        } else {
-            internal_status->code = OK;
-            internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
-        }
+        // we can reuse handles
+        internal_status->code = OK;
+        internal_status->msg_type = OK_WAIT_FOR_RESPONSE;
+
         // log the input handle
         cs165_log(stdout, "FILE HANDLE 1: %s\n", handle);
         if (handle_2) {

@@ -39,6 +39,18 @@ Result* get_result(ClientContext* context, const char* result_name, Status* stat
  * @return
  */
 GeneralizedColumnHandle* add_result_column(ClientContext* context, const char* handle) {
+    // MAKE this function take the handle and then make it so that it
+    // TODO: switch this to a hash table
+    for (int i = 0; i < context->chandles_in_use; i++) {
+        if(strcmp(context->chandle_table[i].name, handle) == 0) {
+            // free the column
+            free(context->chandle_table[i].generalized_column.column_pointer.result);
+            context->chandle_table[i].generalized_column.column_pointer.result = NULL;
+            return &context->chandle_table[i];
+        }
+    }
+
+    // increase the number of client handles if necessary
     if (context->chandles_in_use == context->chandle_slots) {
         context->chandle_slots *= 2;
         context->chandle_table = realloc(

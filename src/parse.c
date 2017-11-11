@@ -20,6 +20,8 @@
 #include "utils.h"
 #include "client_context.h"
 #define DEFAULT_COL_ALLOC 8
+#define DEFAULT_SHARED_ALLOC 16
+
 
 /*
  * TODOs:
@@ -839,6 +841,23 @@ DbOperator* parse_command(
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, internal_status);
+    } else if (strncmp(query_command, "batch_queries", 13) == 0) {
+        assert(NULL == context->shared_scan);
+        context->shared_scan = dbo = malloc(sizeof(DbOperator));
+        dbo->type = SHARED_SCAN;
+        SharedScanOperator* ss_op = &dbo->operator_fields.shared_operator;
+        ss_op->process_scans = false;
+        ss_op->allocated_scans = DEFAULT_SHARED_ALLOC;
+        ss_op->num_scans = 0;
+        ss_op->db_scans = malloc(sizeof(DbOperator*) * ss_op->allocated_scans);
+        internal_status->msg_type = OK_DONE;
+    } else if (strncmp(query_command, "batch_execute", 13) == 0) {
+        assert(NULL != context->shared_scan);
+        // when we are doing the batched execute, process the
+        // set of shared scans
+        dbo = context->shared_scan;
+        dbo->operator_fields.shared_operator.process_scans = true;
+        context->shared_scan = NULL;
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
         dbo = parse_select(query_command, context, internal_status);

@@ -9,9 +9,10 @@
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
-#define LOG 0
-#define LOG_ERR 0
-#define LOG_INFO 0
+#define LOGS_ENABLED 1
+#define LOG LOGS_ENABLED
+#define LOG_ERR LOGS_ENABLED
+#define LOG_INFO LOGS_ENABLED
 
 /* removes newline characters from the input string.
  * Shifts characters over and shortens the length of

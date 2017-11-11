@@ -270,6 +270,7 @@ void handle_client(int client_socket) {
 
     // create the client context here
     ClientContext* client_context = malloc(sizeof(ClientContext));
+    client_context->shared_scan = NULL;  // set to null
     client_context->chandle_table = malloc(sizeof(GeneralizedColumnHandle) * DEFAULT_CLIENT_INIT);
     client_context->chandle_slots = DEFAULT_CLIENT_INIT;
     client_context->chandles_in_use = 0;

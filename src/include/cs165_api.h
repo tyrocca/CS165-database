@@ -205,8 +205,10 @@ typedef struct GeneralizedColumnHandle {
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */
+struct DbOperator;
 typedef struct ClientContext {
     GeneralizedColumnHandle* chandle_table;
+    struct DbOperator* shared_scan;  // this is a list of database operators
     int chandles_in_use;
     int chandle_slots;
 } ClientContext;
@@ -231,6 +233,7 @@ typedef enum OperatorType {
     CREATE,
     INSERT,
     SELECT,
+    SHARED_SCAN,
     SUM,
     AVERAGE,
     MIN,
@@ -293,6 +296,14 @@ typedef struct MathOperator {
     GeneralizedColumn gcol2; //
 } MathOperator;
 
+typedef struct SharedScanOperator {
+    GeneralizedColumnHandle* gcol;
+    struct DbOperator** db_scans;
+    size_t num_scans;
+    size_t allocated_scans;
+    bool process_scans;
+} SharedScanOperator;
+
 /**
  * union type holding the fields of any operator
  */
@@ -303,6 +314,7 @@ typedef union OperatorFields {
     FetchOperator fetch_operator;
     PrintOperator print_operator;
     MathOperator math_operator;
+    SharedScanOperator shared_operator;
 } OperatorFields;
 
 /*

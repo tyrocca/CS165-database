@@ -3,6 +3,7 @@
 #include "db_operations.h"
 #include "client_context.h"
 
+
 /**
  * @brief This function takes in a data_type and returns the size of the
  * data type (useful for malloc)
@@ -123,7 +124,7 @@ void select_from_col(Comparator* comp, Result* result_col) {
     for (size_t idx = 0; idx < *col->size_ptr; idx++) {
         positions[result_col->num_tuples] = idx;
         // TODO: what if we are at the top bound for high? will we not get max?
-        result_col->num_tuples += (col->data[idx] >= comp->p_low &&
+        result_col->num_tuples += (col->data[idx] >= comp->p_low &
                                    col->data[idx] < comp->p_high);
     }
     // if no matches return
@@ -137,6 +138,69 @@ void select_from_col(Comparator* comp, Result* result_col) {
         positions,
         sizeof(size_t) * result_col->num_tuples
     );
+}
+
+/**
+ * @brief Shared column selector
+ *
+ * @param comp
+ * @param result_col
+ */
+void shared_col_select(Comparator* comps[], size_t num_queries, Result* result_cols) {
+    // todo: make it so this only does 1 comparison at a time
+    Column* col = comps[0]->gen_col->column_pointer.column;
+
+    // create a result column for each position
+    size_t* all_positions[num_queries];
+    for (size_t i = 0; i < num_queries; i++) {
+        all_positions[i] = malloc(sizeof(size_t) * (*col->size_ptr));
+        result_cols[i].num_tuples = 0;
+    }
+
+    // Go through the columns and create the new indices
+    for (size_t idx = 0; idx < *col->size_ptr; idx++) {
+        for (size_t q_num = 0; q_num < num_queries; q_num++) {
+            all_positions[q_num][result_cols[q_num].num_tuples] = idx;
+            // todo: what if we are at the top bound for high? will we not get max?
+            result_cols[q_num].num_tuples += (
+                    (col->data[idx] >= comps[q_num]->p_low) &
+                    (col->data[idx] < comps[q_num]->p_high)
+            );
+        }
+    }
+
+    // for each query reallocate the column size and set it to a result
+    // column, if no results free the column
+    for (size_t i = 0; i < num_queries; i++) {
+        if (result_cols[i].num_tuples == 0) {
+            free(all_positions[i]);
+            result_cols[i].payload = NULL;
+        } else {
+            result_cols[i].payload = (void*) realloc(
+                all_positions[i],
+                sizeof(size_t) * result_cols[i].num_tuples
+            );
+        }
+    }
+}
+
+void process_shared_scans(SharedScanOperator* ss_op, ClientContext* context, Status* status) {
+    // make it so we
+    Comparator* comps[ss_op->num_scans];
+    Result* results = malloc(sizeof(Result) * ss_op->num_scans);
+    for (size_t i = 0; i < ss_op->num_scans; ++i) {
+        comps[i] = &ss_op->db_scans[i]->operator_fields.select_operator.comparator;
+        GeneralizedColumnHandle* gcol_handle = add_result_column(
+            context,
+            comps[i]->handle
+        );
+        gcol_handle->generalized_column.column_type = RESULT;
+        gcol_handle->generalized_column.column_pointer.result = &results[i];
+        results[i].data_type = INDEX;
+    }
+    shared_col_select(comps, ss_op->num_scans, results);
+    free(ss_op->num_scans);
+    status->msg_type = OK_DONE;
 }
 
 /**
@@ -782,8 +846,30 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
             status->msg = "Created";
             break;
         case SELECT:
-            process_select(
-                &query->operator_fields.select_operator,
+            if (query->context->shared_scan == NULL) {
+                process_select(
+                    &query->operator_fields.select_operator,
+                    query->context,
+                    status
+                );
+            } else {
+                SharedScanOperator* ss_op = &query->context->shared_scan->operator_fields.shared_operator;
+                if (ss_op->num_scans == ss_op->allocated_scans) {
+                    // double the number of scans
+                    ss_op->allocated_scans *= 2;
+                    ss_op->db_scans = realloc(
+                        ss_op->db_scans,
+                        ss_op->allocated_scans * sizeof(DbOperator*)
+                    );
+                }
+                ss_op->db_scans[ss_op->num_scans++] = query;
+                status->msg_type = OK_DONE;
+                return NULL;
+            }
+            break;
+        case SHARED_SCAN:
+            process_shared_scans(
+                &query->operator_fields.shared_operator,
                 query->context,
                 status
             );

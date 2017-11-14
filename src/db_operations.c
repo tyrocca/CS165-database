@@ -3,6 +3,9 @@
 #include "db_operations.h"
 #include "client_context.h"
 
+// Min and Max helper functions
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 /**
  * @brief This function takes in a data_type and returns the size of the
@@ -146,7 +149,13 @@ void select_from_col(Comparator* comp, Result* result_col) {
  * @param comp
  * @param result_col
  */
-void shared_col_select(Comparator* comps[], size_t num_queries, Result* result_cols[]) {
+void shared_col_select(
+    Comparator* comps[],
+    size_t num_queries,
+    Result* result_cols[],
+    int maxval,
+    int minval
+) {
     // todo: make it so this only does 1 comparison at a time
     Column* col = comps[0]->gen_col->column_pointer.column;
 
@@ -159,13 +168,24 @@ void shared_col_select(Comparator* comps[], size_t num_queries, Result* result_c
 
     // Go through the columns and create the new indices
     for (size_t idx = 0; idx < *col->size_ptr; idx++) {
+        // skip val if it's not in the range
+        int val = col->data[idx];
+        if (val < minval || val > maxval) {
+            continue;
+        }
         for (size_t q_num = 0; q_num < num_queries; q_num++) {
-            all_positions[q_num][result_cols[q_num]->num_tuples] = idx;
-            // todo: what if we are at the top bound for high? will we not get max?
-            result_cols[q_num]->num_tuples += (
-                    (col->data[idx] >= comps[q_num]->p_low) &&
-                    (col->data[idx] < comps[q_num]->p_high)
-            );
+            // METHOD 1 - conditional
+            if ((val >= comps[q_num]->p_low) && (val < comps[q_num]->p_high)) {
+                all_positions[q_num][result_cols[q_num]->num_tuples++] = idx;
+            }
+
+            // METHOD 2 - always inc - this is slower
+            /* all_positions[q_num][result_cols[q_num]->num_tuples] = idx; */
+            /* // todo: what if we are at the top bound for high? will we not get max? */
+            /* result_cols[q_num]->num_tuples += ( */
+            /*         (col->data[idx] >= comps[q_num]->p_low) && */
+            /*         (col->data[idx] < comps[q_num]->p_high) */
+            /* ); */
         }
     }
 
@@ -184,14 +204,21 @@ void shared_col_select(Comparator* comps[], size_t num_queries, Result* result_c
     }
 }
 
+
 void process_shared_scans(SharedScanOperator* ss_op, ClientContext* context, Status* status) {
     // make it so we
     Comparator* comps[ss_op->num_scans];
     Result* results[ss_op->num_scans];
+
+    int maxval = INT_MIN;
+    int minval = INT_MAX;
     for (size_t i = 0; i < ss_op->num_scans; ++i) {
-        /* Result* results = malloc(sizeof(Result) * ss_op->num_scans); */
         results[i] = malloc(sizeof(Result));
         comps[i] = &ss_op->db_scans[i]->operator_fields.select_operator.comparator;
+        // DELETE - set the ranges
+        maxval = MAX(maxval, comps[i]->p_high);
+        minval = MIN(minval, comps[i]->p_low);
+
         GeneralizedColumnHandle* gcol_handle = add_result_column(
             context,
             comps[i]->handle
@@ -200,9 +227,16 @@ void process_shared_scans(SharedScanOperator* ss_op, ClientContext* context, Sta
         gcol_handle->generalized_column.column_pointer.result = results[i];
         results[i]->data_type = INDEX;
     }
-    shared_col_select(comps, ss_op->num_scans, results);
+    shared_col_select(
+        comps,
+        ss_op->num_scans,
+        results,
+        maxval,
+        minval
+    );
     free(ss_op->db_scans);
     status->msg_type = OK_DONE;
+
 }
 
 /**
@@ -515,9 +549,6 @@ void process_col_op(
     status->msg_type = OK_DONE;
 }
 
-// Min and Max helper functions
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
 
 /**
  * @brief function that calculates the max

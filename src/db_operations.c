@@ -324,7 +324,9 @@ void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* statu
     result_col->num_tuples = fetch_op->idx_col->num_tuples;
     int* values = malloc(sizeof(int) * result_col->num_tuples);
     for (size_t i = 0; i < result_col->num_tuples; i++) {
-        values[i] = fetch_op->from_col->data[((size_t*) fetch_op->idx_col->payload)[i]];
+        values[i] = fetch_op->from_col->data[
+            ((size_t*) fetch_op->idx_col->payload)[i]
+        ];
     }
     result_col->payload = values;
     gcol_handle->generalized_column.column_pointer.result = result_col;

@@ -84,7 +84,7 @@ typedef struct Column {
     // You will implement column indexes later.
     void* index;
     //struct ColumnIndex *index;
-    //bool clustered;
+    bool clustered;
 } Column;
 
 

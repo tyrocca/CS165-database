@@ -3,12 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <assert.h>
 /* #include "cs165_api.h" */
 
 // This file contains all the b-tree stuff...
 // MAX is 340, half is 170
-#define MIN_DEGREE 2
-#define NODE_DEGREE (2 * MIN_DEGREE - 1)
+#define MIN_DEGREE 2  // Min number of pointers in a level
+#define MIN_KEYS (MIN_DEGREE - 1)  // Minimum number of keys in a node
+#define MAX_KEYS ((2 * MIN_DEGREE) - 1)  // Max num of keys in a node
+#define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node
+
 #define RESULT_SCALING 16
 
 typedef enum BPTREE_OP {
@@ -30,7 +34,7 @@ struct BPTNode;
 typedef struct BPTLeaf {
     // a child node
     // the 'fence' contains the degree plus 1 for the number of fences
-    size_t col_pos[NODE_DEGREE];
+    size_t col_pos[MAX_KEYS];
     struct BPTNode* next_leaf;
     struct BPTNode* prev_leaf;
 } BPTLeaf;
@@ -42,7 +46,7 @@ typedef struct BPTLeaf {
 typedef struct BPTPointers {
     // the positions contain the node degree number of positions if we have
     // a child node
-    struct BPTNode* children[NODE_DEGREE + 1];
+    struct BPTNode* children[MAX_DEGREE];
 } BPTPointers;
 
 /**
@@ -62,7 +66,7 @@ typedef union BPTMeta {
 typedef struct BPTNode {
     BPTMeta bpt_meta;            // This contains the node details
     size_t num_elements;         // this is the currently used size of the array
-    int node_vals[NODE_DEGREE];  // these are the datapoints
+    int node_vals[MAX_KEYS];  // these are the datapoints
     bool is_leaf;                // this tells us the type
 } BPTNode;
 
@@ -89,24 +93,52 @@ void value_to_node(BPTNodeVal* return_obj, BPTNode* bt_node, size_t idx) {
 }
 
 
-BPTNode* create_node(bool leaf) {
-    BPTNode* new_node = malloc(sizeof(BPTNode));
+/**
+ * @brief Function that creates a node
+ *
+ * @param leaf - whether we want a node or a leaf
+ *
+ * @return allocated node
+ */
+BPTNode* allocate_node(bool leaf) {
+    /* BPTNode* new_node = malloc(sizeof(BPTNode)); */
+    BPTNode* new_node = calloc(1, sizeof(BPTNode));
     new_node->num_elements = 0;
     new_node->is_leaf = leaf;
     if (new_node->is_leaf) {
         new_node->bpt_meta.bpt_leaf.next_leaf = NULL;
-        new_node->bpt_meta.bpt_leaf.next_leaf = NULL;
+        new_node->bpt_meta.bpt_leaf.prev_leaf = NULL;
     }
     return new_node;
 }
 
+/// Make a node
+BPTNode* create_node() {
+    return allocate_node(false);
+}
+
+/// Make a leaf
+BPTNode* create_leaf() {
+    return allocate_node(true);
+}
+
 void print_node(BPTNode* node) {
-    /* if (node->is_leaf) { */
-    /*     printf("\t"); */
-    /* } */
     printf("[ ");
     for (size_t i = 0; i < node->num_elements; i++) {
         printf("%d ", node->node_vals[i]);
+    }
+    printf("]\n");
+}
+
+/* #define GET_NODE_POSITION (node, idx) (node->bpt_meta. */
+void print_leaf(BPTNode* node) {
+    printf("[ ");
+    for (size_t i = 0; i < node->num_elements; i++) {
+        printf(
+            "(%d, %zu) ",
+            node->node_vals[i],
+            node->bpt_meta.bpt_leaf.col_pos[i]
+        );
     }
     printf("]\n");
 }
@@ -150,6 +182,7 @@ void print_tree(BPTNode* node) {
         print_node(current_node);
         node_idx++;
     }
+    free(all_nodes);
     printf("\n");
 }
 
@@ -190,6 +223,7 @@ int binary_search(int* arr, int l_pos, int r_pos, int x) {
 
 typedef struct Result {
     size_t num_tuples;
+    size_t capacity;
     /* DataType data_type; */
     void *payload;
     /* bool free_after_use; */
@@ -204,83 +238,172 @@ typedef struct Result {
  * @return
  */
 
-void add_to_results(Result* result, size_t num_allocated, size_t position) {
-    /* if (result->num_tuples) { */
-    /*     result->payload */
-    /* } */
+
+void increase_result_array(Result *result) {
+    result->capacity *= 2;
+    // FIXME - change to correct type
+    result->payload = realloc(result->payload, sizeof(size_t) * result->capacity);
+}
+
+void add_to_results(Result* result, size_t value) {
+    if (result->num_tuples == result->capacity) {
+        increase_result_array(result);
+    }
+    // add the value to the array
+    ((size_t*)result->payload)[result->num_tuples++] = value;
+}
+
+/* size_t find_value(BPTNode* bt_node, int value, Result* result) { */
+/*     if (bt_node->is_leaf) { */
+/*         for (size_t i = 0; i < bt_node->num_elements; i++) { */
+/*             if (bt_node->node_vals[i] == value) { */
+/*                 add_to_results(result, */
+
+/*             } */
+
+/*         for (size */
+/*     } */
+/*     /1* // iterate over data *1/ */
+
+/*     /1* for (size_t i = 0; i < bt_node->num_elements; i++) { *1/ */
+/*     /1*     if value is a node value *1/ */
+/*     /1*         check the lef *1/ */
+
+/*     /1* } *1/ */
+/*     return 0; */
+/* } */
+
+void insert_into_leaf(BPTNode* bt_node, int value, size_t position) {
+    // start at the first value
+    size_t i = 0;
+    while (i < bt_node->num_elements) {
+        // if the key is larger or if they are equal and the position is
+        // larger, shift right
+        if (bt_node->node_vals[i] > value || (
+                bt_node->node_vals[i] == value
+                && bt_node->bpt_meta.bpt_leaf.col_pos[i] > position)
+        ) {
+            // shift positions right
+            memmove((void*) &bt_node->node_vals[i + 1],
+                    (void*) &bt_node->node_vals[i],
+                    (bt_node->num_elements - i) * sizeof(int));
+            memmove((void*) &bt_node->bpt_meta.bpt_leaf.col_pos[i + 1],
+                    (void*) &bt_node->bpt_meta.bpt_leaf.col_pos[i],
+                    (bt_node->num_elements - i) * sizeof(size_t));
+            break;
+        }
+        i++;
+    }
+    bt_node->node_vals[i] = value;
+    bt_node->bpt_meta.bpt_leaf.col_pos[i] = position;
+    bt_node->num_elements++;
+}
+
+void test_leaf_insert() {
+
+    printf("Single Insert\n");
+    BPTNode* node = create_node();
+    insert_into_leaf(node, 10, 1);
+    printf("== Expected ==\n");
+    printf("[ (10, 1) ]\n");
+    print_leaf(node);
+    printf("== Result ==\n");
+    free(node);
+
+    printf("Multiple Insert\n");
+    BPTNode* node2 = create_leaf();
+    insert_into_leaf(node2, 10, 3);
+    insert_into_leaf(node2, 5, 4);
+    insert_into_leaf(node2, 10, 1);
+    /* insert_into_leaf(node2, 11, 0); */
+    /* insert_into_leaf(node2, 0, 20); */
+    printf("== Expected ==\n");
+    printf("[ (5, 4) (10, 1) (10, 3) ]\n");
+    print_leaf(node2);
+    printf("== Result ==\n");
+    free(node2);
+
+
 }
 
 
-size_t find_value(BPTNode* bt_node, int value, Result result) {
+/* void add_to_leaf(BPTNode* bt_node, int value, size_t position) { */
+/*     assert(bt_node->is_leaf == true); */
+/*     if (bt_node->num_elements < MAX_KEYS) { */
+/*         for (size_t i = 1; i < bt_node->num_elements; i++) { */
+/*             // loop through the nodes */
+/*             if (* */
+/*         } */
+/*     } */
+
+
+/* } */
+
+
+void insert_value(BPTNode* bt_node, int value, size_t position) {
     /* if (bt_node->is_leaf) { */
-    /*     for (size_t i = 0; i < bt_node->num_elements; i++) { */
-    /*         if (bt_node->node_vals[i] == value) { */
-    /*             add_to_results(result, */
-
-    /*         } */
-
-    /*     for (size */
+    /*     if (bt_node */
+    /*     // */
     /* } */
-    /* // iterate over data */
-
-    /* for (size_t i = 0; i < bt_node->num_elements; i++) { */
-    /*     if value is a node value */
-    /*         check the lef */
-
-    /* } */
-
-
 }
 
-void insert_value(BPTNode bt_root, int value, size_t position) {
-}
 void rebalance();
 void delete();
 
 
 
 void testing_print() {
-    BPTNode* root = create_node(false);
+    BPTNode* root = create_node();
     root->num_elements = 2;
     root->node_vals[0] = 0;
     root->node_vals[1] = 10;
 
-    BPTNode* left = create_node(false);
+    BPTNode* left = create_node();
     root->bpt_meta.bpt_ptrs.children[0] = left;
     left->num_elements = 1;
     left->node_vals[0] = -1;
 
-    BPTNode* asdf = create_node(true);
+    BPTNode* asdf = create_leaf();
     left->bpt_meta.bpt_ptrs.children[0] = asdf;
     asdf->num_elements = 1;
     asdf->node_vals[0] = -15;
     asdf->bpt_meta.bpt_leaf.col_pos[0] = 225;
 
-    BPTNode* qwer = create_node(true);
+    BPTNode* qwer = create_leaf();
     left->bpt_meta.bpt_ptrs.children[1] = qwer;
     qwer->num_elements = 1;
     qwer->node_vals[0] = -30;
     qwer->bpt_meta.bpt_leaf.col_pos[0] = 900;
 
 
-    BPTNode* middle = create_node(true);
+    BPTNode* middle = create_leaf();
     root->bpt_meta.bpt_ptrs.children[1] = middle;
     middle->num_elements = 1;
     middle->node_vals[0] = 5;
     middle->bpt_meta.bpt_leaf.col_pos[0] = 25;
 
-    BPTNode* right = create_node(true);
+    BPTNode* right = create_leaf();
     root->bpt_meta.bpt_ptrs.children[2] = right;
     right->num_elements = 1;
     right->node_vals[0] = 200;
     middle->bpt_meta.bpt_leaf.col_pos[0] = 40000;
 
     print_tree(root);
+
+    free(right);
+    free(middle);
+    free(qwer);
+    free(asdf);
+    free(left);
+    free(root);
 }
 
 int main(void) {
-    testing_print();
-    printf("The page size for this system is %ld bytes.\n",
-           sysconf(_SC_PAGESIZE)); /* _SC_PAGE_SIZE is OK too. */
+    /* testing_print(); */
+    /* printf("The page size for this system is %ld bytes.\n", */
+    /*        sysconf(_SC_PAGESIZE)); /1* _SC_PAGE_SIZE is OK too. *1/ */
 
+    printf("Testing leaf insert\n");
+    test_leaf_insert();
+    return 0;
 }

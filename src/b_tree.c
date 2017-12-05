@@ -1,13 +1,17 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
+#include <string.h>
 #include <assert.h>
 #include "b_tree.h"
+#if TESTING
+#include <time.h>
+#endif
 
 // function to create a stack of given capacity. It initializes size of
 // stack as 0
+#define DEFAULT_DEPTH 32
 BPTNodeStack* createStack(unsigned capacity) {
     BPTNodeStack* stack = malloc(sizeof(BPTNodeStack));
     stack->capacity = capacity;
@@ -29,6 +33,9 @@ int isEmpty(BPTNodeStack* stack) {
 // Function to add an item to stack.  It increases top by 1
 void push(BPTNodeStack* stack, BPTNode* item) {
     if (isFull(stack)) {
+        stack->capacity *= 2;
+        stack->array = realloc(stack->array,
+                               stack->capacity * sizeof(BPTNode*));
         return;
     }
     stack->array[++stack->top] = item;
@@ -42,6 +49,10 @@ BPTNode* pop(BPTNodeStack* stack) {
     return stack->array[stack->top--];
 }
 
+void free_stack(BPTNodeStack* stack) {
+    free(stack->array);
+    free(stack);
+}
 
 /// **************************************************************************
 /// Creation functions
@@ -68,7 +79,9 @@ BPTNode* allocate_node(bool leaf) {
 
 /// Make a node
 BPTNode* create_node() {
-    return allocate_node(false);
+    BPTNode* node = allocate_node(false);
+    node->bpt_meta.bpt_ptrs.level = (unsigned) -1;
+    return node;
 }
 
 /// Make a leaf
@@ -97,6 +110,7 @@ int binary_search(int* arr, int l_pos, int r_pos, int x) {
 
         // If the element is present at the middle itself
         if (arr[mid] == x) {
+
             return mid;
         }
 
@@ -112,6 +126,38 @@ int binary_search(int* arr, int l_pos, int r_pos, int x) {
    // We reach here when element is not present in array
    return -1;
 }
+
+/* size_t node_search(int* values, size_t* data, size_t l_pos, size_t r_pos, int x, size_t pos) { */
+/*    if (r_pos >= l_pos) { */
+/*         size_t mid = l_pos + (r_pos - l_pos) / 2; */
+
+/*         // If the element is present at the middle */
+/*         if (values[mid] == x) { */
+/*             if (data[mid] > pos) { */
+/*                 while(mid > l_pos && data[mid] > pos && values[mid] == x) { */
+/*                     mid--; */
+/*                 } */
+/*             } else { */
+/*                 while(mid < r_pos && data[mid] < pos && values[mid] == x) { */
+/*                     mid++; */
+/*                 } */
+/*             } */
+/*             return mid; */
+/*         } */
+
+/*         // If element is smaller than mid, then it can only be present */
+/*         // in left subarray */
+/*         if (arr[mid] > x) { */
+/*             return binary_search(arr, l_pos, mid - 1, x); */
+/*         } */
+
+/*         // Else the element can only be present in right subarray */
+/*         return binary_search(arr, mid + 1, r_pos, x); */
+/*    } */
+/*    // We reach here when element is not present in array */
+/*    return 0; */
+/* } */
+
 
 /**
  * @brief Function that tells you whether a node is the parent of another node
@@ -130,18 +176,35 @@ bool is_child(BPTNode* parent, BPTNode* child) {
     return false;
 }
 
+#if TESTING
 /**
  * @brief Function that prints out the values of a PointerNode
  *  print results like [ val, val, val ]
  *
  * @param node - node to print
  */
+size_t leafcount = 0;
+unsigned current_level = 0;
+
 void print_node(BPTNode* node) {
     printf("[ ");
+    if (node->is_leaf == false){
+        /* node->bpt_meta.bpt_ptrs.level */
+        /* if ( */
+        printf("(LEVEL %u) ",node->bpt_meta.bpt_ptrs.level);
+    } else {
+        printf("(LEAF %zu) ", leafcount++);
+    }
+
     for (size_t i = 0; i < node->num_elements; i++) {
         printf("%d ", node->node_vals[i]);
     }
-    printf("]\n");
+    printf("]");
+    if (leafcount == 0) {
+        printf("\n");
+    } else {
+        printf("\t");
+    }
 }
 
 /**
@@ -169,11 +232,15 @@ void print_leaf(BPTNode* node) {
  *
  * @param node - node to print
  */
-void print_tree(BPTNode* node) {
+void bfs_traverse_tree(BPTNode* node, bool print) {
     BPTNode** all_nodes = malloc(sizeof(BPTNode*) * 2);
     size_t num_nodes = 1;
     size_t node_idx = 0;
     all_nodes[node_idx] = node;
+
+    if (print) {
+        leafcount = 0;
+    }
 
     while (node_idx < num_nodes) {
         // if there are bpt_ptrs.children nodes
@@ -195,12 +262,25 @@ void print_tree(BPTNode* node) {
             // increase number of nodes
             num_nodes += to_add;
         }
-        print_node(current_node);
+        if (print) {
+            print_node(current_node);
+        } else {
+            free(current_node);
+        }
         node_idx++;
     }
     free(all_nodes);
-    printf("\n");
+    if (print) {
+        printf("\n");
+    }
 }
+void print_tree(BPTNode* node) {
+    bfs_traverse_tree(node, true);
+}
+void free_tree(BPTNode* node) {
+    bfs_traverse_tree(node, false);
+}
+
 
 /**
  * @brief Function that tests our print
@@ -250,6 +330,7 @@ void testing_print() {
     free(left);
     free(root);
 }
+#endif
 
 
 /// ***************************************************************************
@@ -317,6 +398,7 @@ void insert_into_leaf(BPTNode* bt_node, int value, size_t position) {
     bt_node->num_elements++;
 }
 
+#if TESTING
 /**
  * @brief Simple function that makes sure that inseting into the
  *  leaves works
@@ -337,13 +419,16 @@ void test_leaf_insert() {
     BPTNode* node2 = create_leaf();
     insert_into_leaf(node2, 10, 3);
     insert_into_leaf(node2, 5, 4);
+    #if MAX_KEYS >= 3
     insert_into_leaf(node2, 10, 1);
+    #endif
     printf("== Expected ==\n");
     printf("[ (5, 4) (10, 1) (10, 3) ]\n");
     print_leaf(node2);
     printf("== Result ==\n");
     free(node2);
 }
+#endif
 
 
 /**
@@ -420,6 +505,7 @@ void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_node) 
     split_node->middle_val = values[middle];
 }
 
+#if TESTING
 // function that tests splitting the leaf
 void test_split_leaf() {
     SplitNode split_node;
@@ -427,8 +513,11 @@ void test_split_leaf() {
     BPTNode* node = create_leaf();
     insert_into_leaf(node, 10, 3);
     insert_into_leaf(node, 5, 4);
+    #if MAX_KEYS >= 3
     insert_into_leaf(node, 8, 4);
+    #endif
     print_leaf(node);
+
 
     split_leaf(node, 12, 3, &split_node);
     print_leaf(split_node.left_leaf);
@@ -436,6 +525,7 @@ void test_split_leaf() {
     printf("Middle %d\n", split_node.middle_val);
     free(node);
 }
+#endif
 
 /**
  * @brief Function for adding a key, value pair to a leaf
@@ -444,18 +534,75 @@ void test_split_leaf() {
  * @param value - value to add to the node
  * @param position - position
  */
-void add_to_leaf(BPTNode* bt_node, int value, size_t position) {
+SplitNode* add_to_leaf(BPTNode* bt_node, int value, size_t position) {
     assert(bt_node->is_leaf == true);
     // we can either do a naive insert or we
     // need to insert into a full node
     if (bt_node->num_elements < MAX_KEYS) {
         insert_into_leaf(bt_node, value, position);
+        return NULL;
     } else {
-        SplitNode split_node;
-        split_leaf(bt_node, value, position, &split_node);
+        SplitNode* split_node = malloc(sizeof(SplitNode));
+        split_leaf(bt_node, value, position, split_node);
         // TODO: set the pointers so the go to eachother
-        add_to_pointer_node(split_node);
+        return split_node;
     }
+}
+
+/**
+ * @brief Function that takes in a node and a value and returns the
+ *  node that should eventually contain the leaf
+ *      [leaf, parent, grandparent, ...root]
+ *
+ * @param bt_node - this is the node we start our quest at
+ * @param value - this is the value that we are adding
+ *
+ * @return BPTNodeStack - this is a stack that contains the access list
+ */
+BPTNodeStack* find_leaf(BPTNode* bt_node, int value) {
+    BPTNodeStack* access_stack = createStack(32);
+    while (bt_node->is_leaf == false) {
+        size_t i = 0;
+        while (i < bt_node->num_elements) {
+            if (value < bt_node->node_vals[i]) {
+                break;
+            } else {
+                i++;
+            }
+        }
+        // once we have found a child, push to the access stack
+        // and move to checkout the child
+        push(access_stack, bt_node);
+        bt_node = bt_node->bpt_meta.bpt_ptrs.children[i];
+    }
+    // the last item in the stack will be the leaf
+    push(access_stack, bt_node);
+    return access_stack;
+}
+
+void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
+    assert(bt_node != NULL);
+    assert(split_node != NULL);
+
+    assert(bt_node->num_elements < MAX_KEYS);
+
+    // when we have a brand new node we need to also set the left fence value
+    // In all other cases we will just set the right fence
+    if (bt_node->num_elements == 0) {
+        bt_node->bpt_meta.bpt_ptrs.children[bt_node->num_elements] =
+                split_node->left_leaf;
+    }
+    // TODO: Determine if this is the correct place to make them point to
+    // eachother - should this happen in the creation of the split??
+    split_node->left_leaf->bpt_meta.bpt_leaf.next_leaf = split_node->right_leaf;
+    split_node->right_leaf->bpt_meta.bpt_leaf.prev_leaf = split_node->left_leaf;
+
+    // set the middle and then increment
+    bt_node->node_vals[bt_node->num_elements++] = split_node->middle_val;
+
+    // At the end we will set the right leaf
+    bt_node->bpt_meta.bpt_ptrs.children[bt_node->num_elements] =
+            split_node->right_leaf;
 }
 
 /**
@@ -464,12 +611,64 @@ void add_to_leaf(BPTNode* bt_node, int value, size_t position) {
  * @param bt_node
  * @param value
  * @param position
+ *
+ * @return new head of the btree
  */
-void insert_value(BPTNode* bt_node, int value, size_t position) {
-    (void) bt_node;
-    (void) value;
-    (void) position;
+BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
+    // if we don't have a first value, make a first value
+    if (bt_node == NULL) {
+        bt_node = create_leaf();
+        add_to_leaf(bt_node, value, position);
+        return bt_node;
+    }
+
+    // OTHERWISE - we need to handle normal insertion
+    // find the leaf that we will add to
+    BPTNodeStack* access_stack = find_leaf(bt_node, value);
+    BPTNode* leaf = pop(access_stack);
+    SplitNode* split_node = add_to_leaf(leaf, value, position);
+
+    // if we don't have to split, we just return the same head
+    if (split_node == NULL) {
+        free_stack(access_stack);
+        return bt_node;
+    }
+
+    // Handle rebalancing - this is the case when we have 1 empty value
+    if (isEmpty(access_stack)) {
+        // base case, this is our first split
+        bt_node = create_node();
+        bt_node->bpt_meta.bpt_ptrs.level = 0;
+        insert_into_tree_body(bt_node, split_node);
+    } else {
+        insert_into_tree_body(bt_node, split_node);
+    }
+
+    // cleanup memory
+    free(split_node);
+    free_stack(access_stack);
+    return bt_node;
 }
+
+void testing_kick_up() {
+    BPTNode* root = insert_value(NULL, 12, 4);
+    /* print_tree(root); */
+    printf("Now adding values\n");
+    root = insert_value(root, 8, 4);
+    root = insert_value(root, 0, 2);
+    /* print_tree(root); */
+
+    /* root = insert_value(root, 3, 4); */
+    root = insert_value(root, 33, 4);
+    /* print_tree(root); */
+    bfs_traverse_tree(root, true);
+    /* root = insert_value(root, 5, 2); */
+    /* root = insert_value(root, 99, 4); */
+    /* root = insert_value(root, 2, 2); */
+    /* free(root); */
+
+}
+
 
 /// ***************************************************************************
 /// B Plus Tree Body Insertions
@@ -482,8 +681,10 @@ void add_to_pointer_node(SplitNode split_node){
 
 
 
+#if TESTING
 int main(void) {
     printf("Testing leaf insert\n");
-    test_split_leaf();
+    testing_kick_up();
     return 0;
 }
+#endif

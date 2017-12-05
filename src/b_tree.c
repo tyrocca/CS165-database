@@ -4,73 +4,46 @@
 #include <string.h>
 #include <stdbool.h>
 #include <assert.h>
-/* #include "cs165_api.h" */
+#include "b_tree.h"
 
-// This file contains all the b-tree stuff...
-// MAX is 340, half is 170
-#define MIN_DEGREE 2  // Min number of pointers in a level
-#define MIN_KEYS (MIN_DEGREE - 1)  // Minimum number of keys in a node
-#define MAX_KEYS ((2 * MIN_DEGREE) - 1)  // Max num of keys in a node
-#define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node
+// function to create a stack of given capacity. It initializes size of
+// stack as 0
+BPTNodeStack* createStack(unsigned capacity) {
+    BPTNodeStack* stack = malloc(sizeof(BPTNodeStack));
+    stack->capacity = capacity;
+    stack->top = -1;
+    stack->array = malloc(stack->capacity * sizeof(BPTNode*));
+    return stack;
+}
 
-#define RESULT_SCALING 16
+// BPTNodeStack is full when top is equal to the last index
+int isFull(BPTNodeStack* stack) {
+    return ((unsigned) stack->top) == stack->capacity - 1;
+}
 
-typedef enum BPTREE_OP {
-    INSERT_VAL,
-    DELETE_VAL,
-    FIND_VAL
-} BPTREE_OP;
+// BPTNodeStack is empty when top is equal to -1
+int isEmpty(BPTNodeStack* stack) {
+    return stack->top == -1;
+}
 
-// Define the "BPTNode"
-struct BPTNode;
+// Function to add an item to stack.  It increases top by 1
+void push(BPTNodeStack* stack, BPTNode* item) {
+    if (isFull(stack)) {
+        return;
+    }
+    stack->array[++stack->top] = item;
+}
 
-
-/**
- * @brief This is the struct for the leaves of the bpt
- *      - Array of column positions
- *      - Pointer to the next leaf
- *      - Pointer to the previous leaf
- */
-typedef struct BPTLeaf {
-    // a child node
-    // the 'fence' contains the degree plus 1 for the number of fences
-    size_t col_pos[MAX_KEYS];
-    struct BPTNode* next_leaf;
-    struct BPTNode* prev_leaf;
-} BPTLeaf;
-
-/**
- * @brief This is a struct for the pointers to other leaves. We can
- * have n+1 of them
- */
-typedef struct BPTPointers {
-    // the positions contain the node degree number of positions if we have
-    // a child node
-    struct BPTNode* children[MAX_DEGREE];
-} BPTPointers;
-
-/**
- * @brief This union is either a pointer to an array of nodes (if
- * we have a node), or is a pointer to an array of column positions
- * (if we have struct)
- */
-typedef union BPTMeta {
-    BPTLeaf bpt_leaf;
-    BPTPointers bpt_ptrs;
-} BPTMeta;
+// Function to remove an item from stack.  It decreases top by 1
+BPTNode* pop(BPTNodeStack* stack) {
+    if (isEmpty(stack)) {
+        return NULL;
+    }
+    return stack->array[stack->top--];
+}
 
 
-/**
- * @brief This is the structure for the nodes. A node
- */
-typedef struct BPTNode {
-    BPTMeta bpt_meta;            // This contains the node details
-    size_t num_elements;         // this is the currently used size of the array
-    int node_vals[MAX_KEYS];  // these are the datapoints
-    bool is_leaf;                // this tells us the type
-} BPTNode;
-
-// IDK WHAT to do wit this
+// IDK WHAT to do with this
 typedef struct BPTNodeVal {
     BPTNode* left_branch;
     BPTNode* right_branch;
@@ -299,8 +272,12 @@ void insert_into_leaf(BPTNode* bt_node, int value, size_t position) {
     bt_node->num_elements++;
 }
 
+/**
+ * @brief Simple function that makes sure that inseting into the
+ *  leaves works
+ */
 void test_leaf_insert() {
-
+    // single insert test
     printf("Single Insert\n");
     BPTNode* node = create_node();
     insert_into_leaf(node, 10, 1);
@@ -310,41 +287,137 @@ void test_leaf_insert() {
     printf("== Result ==\n");
     free(node);
 
+    // multiple insert test
     printf("Multiple Insert\n");
     BPTNode* node2 = create_leaf();
     insert_into_leaf(node2, 10, 3);
     insert_into_leaf(node2, 5, 4);
     insert_into_leaf(node2, 10, 1);
-    /* insert_into_leaf(node2, 11, 0); */
-    /* insert_into_leaf(node2, 0, 20); */
     printf("== Expected ==\n");
     printf("[ (5, 4) (10, 1) (10, 3) ]\n");
     print_leaf(node2);
     printf("== Result ==\n");
     free(node2);
+}
 
+void find_leaf(BPTNode* bt_node, int value, BPTNodeStack* access_list) {
+    /* for ( */
 
 }
 
+typedef struct SplitNode {
+    BPTNode* left_leaf;
+    BPTNode* right_leaf;
+    int middle_val;
+} SplitNode;
 
-/* void add_to_leaf(BPTNode* bt_node, int value, size_t position) { */
-/*     assert(bt_node->is_leaf == true); */
-/*     if (bt_node->num_elements < MAX_KEYS) { */
-/*         for (size_t i = 1; i < bt_node->num_elements; i++) { */
-/*             // loop through the nodes */
-/*             if (* */
-/*         } */
-/*     } */
+/**
+ * @brief Function that takes in a full leaf and a next value and
+ *  returns a struct that contains the new left and right pointers
+ *  as well as the median values that should be kicked up the tree
+ *
+ * @param bt_node - node to split
+ * @param value - new value being added
+ * @param pos - the new position of the new value
+ * @param result_node - the output node
+ */
+void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_node) {
+    // simple checks
+    assert(bt_node->is_leaf == true);
+    assert(bt_node->num_elements == MAX_KEYS);
 
+    // this is the temp array
+    size_t temp_buf_len = MAX_KEYS + 1;
+    int values[temp_buf_len];
+    size_t positions[temp_buf_len];
 
-/* } */
+    // set these to be equal
+    memcpy((void*) values,
+            (void*)bt_node->node_vals,
+            MAX_KEYS * sizeof(int));
+    memcpy((void*) positions,
+            (void*)bt_node->bpt_meta.bpt_leaf.col_pos,
+            MAX_KEYS * sizeof(size_t));
+
+    // this is the loop that handles the insertion
+    size_t i = 0;
+    while (i < MAX_KEYS) {
+        if (value < values[i] || (value == values[i] && pos > positions[i])) {
+            // shift positions right
+            memmove((void*) &values[i + 1],
+                    (void*) &values[i],
+                    (MAX_KEYS - i) * sizeof(int));
+            memmove((void*) &positions[i + 1],
+                    (void*) &positions[i],
+                    (MAX_KEYS - i) * sizeof(size_t));
+            break;
+        }
+        i++;
+    }
+    values[i] = value;
+    positions[i] = pos;
+
+    // now that we have a buffer full of the results we want to
+    // place the values in the correct nodes
+    size_t middle = temp_buf_len / 2;
+    size_t num_right = temp_buf_len - middle;
+
+    // set the left node (it will have fewer values
+    split_node->left_leaf = bt_node;
+    split_node->left_leaf->num_elements = middle;
+    memcpy((void*) split_node->left_leaf->node_vals,
+            (void*) values,
+            middle * sizeof(int));
+    memcpy((void*) split_node->left_leaf->bpt_meta.bpt_leaf.col_pos,
+            (void*) positions,
+            middle * sizeof(size_t));
+
+    // set the right leaf to be all the current values at the n/2 + 1 location
+    split_node->right_leaf = create_leaf();
+    split_node->right_leaf->num_elements = num_right;
+    memcpy((void*) split_node->right_leaf->node_vals,
+            (void*) &values[middle],
+            num_right * sizeof(int));
+    memcpy((void*) split_node->right_leaf->bpt_meta.bpt_leaf.col_pos,
+            (void*) &positions[middle],
+            num_right * sizeof(size_t));
+    // set the median value
+    split_node->middle_val = values[middle];
+}
+
+// function that tests splitting the leaf
+void test_split_leaf() {
+    SplitNode split_node;
+    printf("Splitting Node\n");
+    BPTNode* node = create_leaf();
+    insert_into_leaf(node, 10, 3);
+    insert_into_leaf(node, 5, 4);
+    insert_into_leaf(node, 8, 4);
+    print_leaf(node);
+
+    split_leaf(node, 12, 3, &split_node);
+    print_leaf(split_node.left_leaf);
+    print_leaf(split_node.right_leaf);
+    printf("Middle %d\n", split_node.middle_val);
+    free(node);
+}
+
+void add_to_leaf(BPTNode* bt_node, int value, size_t position) {
+    assert(bt_node->is_leaf == true);
+    // we can either do a naive insert or we
+    // need to insert into a full node
+    if (bt_node->num_elements < MAX_KEYS) {
+        insert_into_leaf(bt_node, value, position);
+    } else {
+        SplitNode split_node;
+        split_leaf(bt_node, value, position, &split_node);
+        // TODO: set the pointers so the go to eachother
+        add_to_pointer_node(split_node);
+    }
+}
 
 
 void insert_value(BPTNode* bt_node, int value, size_t position) {
-    /* if (bt_node->is_leaf) { */
-    /*     if (bt_node */
-    /*     // */
-    /* } */
 }
 
 void rebalance();
@@ -399,11 +472,9 @@ void testing_print() {
 }
 
 int main(void) {
-    /* testing_print(); */
-    /* printf("The page size for this system is %ld bytes.\n", */
-    /*        sysconf(_SC_PAGESIZE)); /1* _SC_PAGE_SIZE is OK too. *1/ */
-
     printf("Testing leaf insert\n");
-    test_leaf_insert();
+    test_split_leaf();
+
+
     return 0;
 }

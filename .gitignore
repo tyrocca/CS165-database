@@ -18,6 +18,7 @@ obj/*
 bin/*
 server
 client
+b_tree
 .deps
 
 #ide stuff

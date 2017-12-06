@@ -158,21 +158,25 @@ unsigned current_level = 0;
 void print_node(BPTNode* node) {
     printf("[ ");
     if (node->is_leaf == false){
-        /* node->bpt_meta.bpt_ptrs.level */
-        /* if ( */
         printf("(LEVEL %u) ",node->bpt_meta.bpt_ptrs.level);
     } else {
-        printf("(LEAF %zu) ", leafcount++);
+        printf("\n(LEAF %zu) ", leafcount++);
     }
 
     for (size_t i = 0; i < node->num_elements; i++) {
-        printf("%d ", node->node_vals[i]);
+        if (node->is_leaf) {
+            printf(
+                "\n\t{%d, %zu}",
+                node->node_vals[i],
+                node->bpt_meta.bpt_leaf.col_pos[i]
+            );
+        } else {
+            printf("%d ", node->node_vals[i]);
+        }
     }
     printf("]");
     if (leafcount == 0) {
         printf("\n");
-    } else {
-        /* printf("\t"); */
     }
 }
 
@@ -325,7 +329,175 @@ void add_to_results(Result* result, size_t value) {
     // add the value to the array
     ((size_t*)result->payload)[result->num_tuples++] = value;
 }
+
+void insert_into_results(Result* result, size_t* data, size_t num_items) {
+    // we want to copy into the result column
+    if (result->num_tuples + num_items > result->capacity) {
+        result->capacity = result->num_tuples + num_items;
+        result->payload = realloc(result->payload, sizeof(size_t) * result->capacity);
+    }
+    // where to start the copying
+    void* start = (size_t*) result->payload + result->num_tuples;
+    memcpy(start, data, num_items * sizeof(size_t));
+    result->num_tuples += num_items;
+}
+
 /* size_t find_value(BPTNode* bt_node, int value, Result* result); */
+/* BPTNodeStack* find_values(BPTNode* bt_node, int value) { */
+BPTNode* search_for_leaf(BPTNode* bt_node, int value) {
+    while (bt_node->is_leaf == false) {
+        size_t i = 0;
+        while (i < bt_node->num_elements) {
+            if (value < bt_node->node_vals[i]) {
+                break;
+            } else {
+                i++;
+            }
+        }
+        // once we have found a child, push to the access stack
+        // and move to checkout the child
+        bt_node = bt_node->bpt_meta.bpt_ptrs.children[i];
+    }
+    // the last item in the stack will be the leaf
+    assert(bt_node->is_leaf == true);
+    return bt_node;
+}
+
+
+/**
+ * @brief Takes in a range [low, high)
+ *
+ * @param root
+ * @param gte_val
+ * @param lt_val
+ * @param result
+ */
+Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
+    Result* result = malloc(sizeof(Result));
+    result->capacity = MAX_KEYS;
+    result->num_tuples = 0;
+    result->payload = malloc(sizeof(size_t) * result->capacity);
+
+    // get the lowest possible leaf (we have to look back in case we have
+    // a situation where the same value was added multiple times
+    BPTNode* low_bound = search_for_leaf(root, gte_val);
+    while (low_bound->node_vals[0] == gte_val) {
+        BPTNode* prev = low_bound->bpt_meta.bpt_leaf.prev_leaf;
+        // if the low end of the current leaf equals the bound,
+        // check backwards to see if that leaf could contain this value
+        // (by checking the max ie: [0, 3, 3] <--> [3, 4, 5]
+        if (prev && prev->node_vals[prev->num_elements - 1] == gte_val) {
+            low_bound = prev;
+        } else {
+            break;
+        }
+    }
+    // We know that we will have the leaf that contains this value
+    BPTNode* high_bound = search_for_leaf(root, lt_val);
+
+    // find the first value that meets the condition
+    size_t low_idx = 0;
+    while (low_bound->node_vals[low_idx] < gte_val) {
+        low_idx++;
+    }
+
+    // now add to array
+    while (low_bound != high_bound) {
+        // if we have a situation where multiple leaves fit the bill
+        // copy from the matching value over
+        insert_into_results(result,
+                            &low_bound->bpt_meta.bpt_leaf.col_pos[low_idx],
+                            low_bound->num_elements - low_idx);
+        // the next will have to be contained
+        low_bound = low_bound->bpt_meta.bpt_leaf.next_leaf;
+        low_idx = 0;
+    }
+
+    // once they are equal we need to copy the correct swath -
+    // we only want up to the top bound (exclusive)
+    size_t high_idx = 0;
+    while (high_idx < high_bound->num_elements &&
+            high_bound->node_vals[high_idx] < lt_val) {
+        high_idx++;
+    }
+    // now insert!
+    if (high_idx - low_idx > 0) {
+        insert_into_results(result,
+                            &high_bound->bpt_meta.bpt_leaf.col_pos[low_idx],
+                            high_idx - low_idx);
+    }
+    return result;
+}
+
+/**
+ * @brief this is the function for selecting from a clustered index
+ *
+ * @param root
+ * @param gte_val
+ * @param lt_val
+ *
+ * @return
+ */
+Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
+    Result* result = malloc(sizeof(Result));
+
+
+    // get the lowest possible leaf (we have to look back in case we have
+    // a situation where the same value was added multiple times
+    BPTNode* low_bound = search_for_leaf(root, gte_val);
+    while (low_bound->node_vals[0] == gte_val) {
+        BPTNode* prev = low_bound->bpt_meta.bpt_leaf.prev_leaf;
+        // if the low end of the current leaf equals the bound,
+        // check backwards to see if that leaf could contain this value
+        // (by checking the max ie: [0, 3, 3] <--> [3, 4, 5]
+        if (prev && prev->node_vals[prev->num_elements - 1] == gte_val) {
+            low_bound = prev;
+        } else {
+            break;
+        }
+    }
+    // We know that we will have the leaf that contains this value
+    BPTNode* high_bound = search_for_leaf(root, lt_val);
+
+    // find the first value that meets the condition -
+    // we then want to store this index as the start of the
+    // range of indices that we will be getting
+    size_t low_idx = 0;
+    while (low_bound->node_vals[low_idx] < gte_val) {
+        low_idx++;
+    }
+    low_idx = low_bound->bpt_meta.bpt_leaf.col_pos[low_idx];
+
+    // This is the high index. This is the last value that satisfies
+    // this condition
+    size_t high_idx = 0;
+    while (high_idx + 1 < high_bound->num_elements &&
+            high_bound->node_vals[high_idx] < lt_val) {
+        high_idx++;
+    }
+    // this is the high bound
+    /* if (high_bound->node_vals[high_idx] < lt_val) { */
+    if (high_bound->node_vals[high_idx] < lt_val) {
+        high_idx = high_bound->bpt_meta.bpt_leaf.col_pos[high_idx] + 1;
+    } else {
+        high_idx = high_bound->bpt_meta.bpt_leaf.col_pos[high_idx];
+    }
+    /* } */
+
+    // now insert!
+    printf("range [%zu to %zu)\n",
+            low_idx,
+            high_idx);
+
+    result->capacity = high_idx - low_idx + 1;
+    result->num_tuples = result->capacity;
+    result->payload = malloc(sizeof(size_t) * result->capacity);
+    int i = 0;
+    while (low_idx <= high_idx) {
+        ((size_t*)result->payload)[i++] = low_idx++;
+    }
+    return result;
+}
 
 
 /// **************************************************************************
@@ -409,7 +581,7 @@ void test_leaf_insert() {
  * @param pos - the new position of the new value
  * @param result_node - the output node
  */
-void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_node) {
+void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_leaf) {
     // simple checks
     assert(bt_node->is_leaf == true);
     assert(bt_node->num_elements == MAX_KEYS);
@@ -451,26 +623,45 @@ void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_node) 
     size_t num_right = temp_buf_len - middle;
 
     // set the left node (it will have fewer values
-    split_node->left_leaf = bt_node;
-    split_node->left_leaf->num_elements = middle;
-    memcpy((void*) split_node->left_leaf->node_vals,
+    split_leaf->left_leaf = bt_node;
+    split_leaf->left_leaf->num_elements = middle;
+    memcpy((void*) split_leaf->left_leaf->node_vals,
             (void*) values,
             middle * sizeof(int));
-    memcpy((void*) split_node->left_leaf->bpt_meta.bpt_leaf.col_pos,
+    memcpy((void*) split_leaf->left_leaf->bpt_meta.bpt_leaf.col_pos,
             (void*) positions,
             middle * sizeof(size_t));
 
     // set the right leaf to be all the current values at the n/2 + 1 location
-    split_node->right_leaf = create_leaf();
-    split_node->right_leaf->num_elements = num_right;
-    memcpy((void*) split_node->right_leaf->node_vals,
+    split_leaf->right_leaf = create_leaf();
+    split_leaf->right_leaf->num_elements = num_right;
+    memcpy((void*) split_leaf->right_leaf->node_vals,
             (void*) &values[middle],
             num_right * sizeof(int));
-    memcpy((void*) split_node->right_leaf->bpt_meta.bpt_leaf.col_pos,
+    memcpy((void*) split_leaf->right_leaf->bpt_meta.bpt_leaf.col_pos,
             (void*) &positions[middle],
             num_right * sizeof(size_t));
+
     // set the median value
-    split_node->middle_val = values[middle];
+    split_leaf->middle_val = values[middle];
+
+    // set interleaf pointers
+    // the right leaf should point back to the left leaf
+    split_leaf->right_leaf->bpt_meta.bpt_leaf.prev_leaf =
+            split_leaf->left_leaf;
+
+    // the right leaf should now point to where the left leaf pointed
+    BPTNode* old_next = split_leaf->left_leaf->bpt_meta.bpt_leaf.next_leaf;
+    split_leaf->right_leaf->bpt_meta.bpt_leaf.next_leaf = old_next;
+    // if it pointed to anything, we need to update that as well so
+    // it will now point to the new right leaf
+    if (old_next) {
+        old_next->bpt_meta.bpt_leaf.prev_leaf = split_leaf->right_leaf;
+    }
+    // last the left leaf's next should be the right leaf
+    split_leaf->left_leaf->bpt_meta.bpt_leaf.next_leaf =
+            split_leaf->right_leaf;
+
 }
 
 #if TESTING
@@ -571,13 +762,6 @@ void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
         // set left fence
         bt_node->bpt_meta.bpt_ptrs.children[bt_node->num_elements] =
                 split_node->left_leaf;
-        // set right fence
-        // make left and right point to eachother
-        /* if (split_node->right_leaf->is_leaf) { */
-        /*     split_node->left_leaf->bpt_meta.bpt_leaf.next_leaf = split_node->right_leaf; */
-        /*     split_node->right_leaf->bpt_meta.bpt_leaf.prev_leaf = split_node->left_leaf; */
-        /* } */
-        /* return; */
     }
 
     // inserting in all other cases - get the
@@ -596,14 +780,6 @@ void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
         }
         i++;
     }
-
-    /* if (split_node->right_leaf->is_leaf) { */
-    /*     // node that is being added to */
-    /*     BPTNode* temp = bt_node->bpt_meta.bpt_ptrs.children[i]; */
-    /*     split_node->right_leaf->bpt_meta.bpt_leaf.next_leaf = */
-    /*             temp->bpt_meta.bpt_leaf.next_leaf; */
-
-    /* } */
 
     // place the node in the correct spot
     bt_node->node_vals[i] = split_node->middle_val;
@@ -789,9 +965,9 @@ void testing_kick_up() {
     srand(time(NULL));
 
     BPTNode* root = NULL;
-    for (int i = 1; i < 1000000; i++) {
-        int val = rand();
-        size_t pos = (size_t) rand();
+    for (int i = 1; i < 100; i++) {
+        int val = rand() % 200;
+        size_t pos = (size_t) rand() % 2000;
 
         /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
         root = insert_value(root, val, pos);
@@ -800,12 +976,37 @@ void testing_kick_up() {
     free_tree(root);
 
 }
+void testing_search() {
+    srand(time(NULL));
+    BPTNode* root = NULL;
+    for (int i = 0; i < 20; i++) {
+        int val = 10 + i;
+        /* size_t pos = (size_t) rand() % 2000; */
+        size_t pos = i;
+        /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
+        root = insert_value(root, val, pos);
+    }
+    print_tree(root);
+
+    /* Result* result = find_values_unclustered(root, 0, 100); */
+    Result* result = find_values_clustered(root, 14, 15);
+    for (size_t i = 0; i < result->num_tuples;) {
+        printf("%zu\n", ((size_t*)result->payload)[i++]);
+    }
+    printf("\n TOTAL: %zu\n", result->num_tuples);
+
+    free(result->payload);
+    free(result);
+    free_tree(root);
+}
 #endif
+
+
 
 #if TESTING
 int main(void) {
     printf("Testing leaf insert\n");
-    testing_kick_up();
+    testing_search();
     printf("SIZE is %zu\n", sizeof(BPTNode));
     return 0;
 }

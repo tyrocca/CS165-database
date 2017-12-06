@@ -3,15 +3,11 @@
 #include <string.h>
 
 int main() {
-    const char* hello = "Hello, World!";
-    char* str = malloc(13 * sizeof(char)); // "Hello, World!" is 13 characters long
-
-    for (int i = 0; i < 13; i++) {
-        str[i] = hello[i];
-    }
-    str[13] = 0; // Don't forget the terminating nul character
-
-    printf("%s\n", str);
-
+    int max[400];
+    memset((void*) max, 0, sizeof(int) * 400);
+    max[399] = 200;
+    int starting_value = 0;
+    while (max[starting_value++] < 100)
+    printf("Done, %d", starting_value);
     return 0;
 }

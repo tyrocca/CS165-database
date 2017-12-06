@@ -127,37 +127,6 @@ int binary_search(int* arr, int l_pos, int r_pos, int x) {
    return -1;
 }
 
-/* size_t node_search(int* values, size_t* data, size_t l_pos, size_t r_pos, int x, size_t pos) { */
-/*    if (r_pos >= l_pos) { */
-/*         size_t mid = l_pos + (r_pos - l_pos) / 2; */
-
-/*         // If the element is present at the middle */
-/*         if (values[mid] == x) { */
-/*             if (data[mid] > pos) { */
-/*                 while(mid > l_pos && data[mid] > pos && values[mid] == x) { */
-/*                     mid--; */
-/*                 } */
-/*             } else { */
-/*                 while(mid < r_pos && data[mid] < pos && values[mid] == x) { */
-/*                     mid++; */
-/*                 } */
-/*             } */
-/*             return mid; */
-/*         } */
-
-/*         // If element is smaller than mid, then it can only be present */
-/*         // in left subarray */
-/*         if (arr[mid] > x) { */
-/*             return binary_search(arr, l_pos, mid - 1, x); */
-/*         } */
-
-/*         // Else the element can only be present in right subarray */
-/*         return binary_search(arr, mid + 1, r_pos, x); */
-/*    } */
-/*    // We reach here when element is not present in array */
-/*    return 0; */
-/* } */
-
 
 /**
  * @brief Function that tells you whether a node is the parent of another node
@@ -580,6 +549,17 @@ BPTNodeStack* find_leaf(BPTNode* bt_node, int value) {
 }
 
 
+/// ***************************************************************************
+/// B Plus Tree Body Insertions
+/// ***************************************************************************
+
+/**
+ * @brief This function will take a kicked up split node and will
+ *      insert it into the tree
+ *
+ * @param bt_node - this is the node that we will be inserting into
+ * @param split_node - this is the node that we will be add
+ */
 void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
     assert(bt_node != NULL);
     assert(split_node != NULL);
@@ -633,6 +613,15 @@ void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
     bt_node->num_elements++;
 }
 
+/**
+ * @brief this function takes a current parent node and will
+ *  add the kicked up child node. It will then split itself
+ *  into a left and right half
+ *
+ * @param bt_node - parent node
+ * @param insert_node - split node to add
+ * @param result_node - the node we want to attach the result to
+ */
 void split_body_node(BPTNode* bt_node, SplitNode* insert_node, SplitNode* result_node) {
     assert(bt_node->is_leaf == false);
     assert(bt_node->num_elements == MAX_KEYS);
@@ -706,6 +695,21 @@ void split_body_node(BPTNode* bt_node, SplitNode* insert_node, SplitNode* result
     return;
 }
 
+/**
+ * @brief This function takes a node and will insert into it recursively.
+ *      - if there is no node to insert into we will create a new node and
+ *  add to it.
+ *      - if there is a nonfull node then we will add that split node to it
+ *      - if the parent is full we will add to it and split it into two
+ *          parts. we will then recursively add to its parents until we
+ *          either hit case 1 or 2
+ *
+ * @param bt_node - the parent node
+ * @param split_node - the kicked up node that should be added
+ * @param access_stack - this is the list of accesses (a stack)
+ *
+ * @return Head of the tree
+ */
 BPTNode* rebalanced_insert(
     BPTNode* bt_node,
     SplitNode* split_node,
@@ -780,52 +784,29 @@ BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
     return bt_node;
 }
 
+#if TESTING
 void testing_kick_up() {
-    /* srand(time(NULL)); */
+    srand(time(NULL));
 
     BPTNode* root = NULL;
-    for (int i = 0; i < 30; i += 3) {
-        root = insert_value(root, i, (size_t) i);
-        printf("\nInserting %dth: value %d, position %d\n", i / 3, i, i);
-        print_tree(root);
+    for (int i = 1; i < 1000000; i++) {
+        int val = rand();
+        size_t pos = (size_t) rand();
+
+        /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
+        root = insert_value(root, val, pos);
     }
-    /* for (int i = 1; i < 10; i++) { */
-    /*     root = insert_value(root, i, (size_t) i + 100); */
-    /*     printf("\nInserting %dth: value %d, position %d\n", i, i, i); */
-    /*     print_tree(root); */
-    /* } */
-    /* root = insert_value(root, 1, 1); */
-    /* root = insert_value(root, 2, 2); */
-    /* root = insert_value(root, 3, 3); */
-    /* root = insert_value(root, 4, 4); */
-    /* root = insert_value(root, 5, 5); */
-    /* root = insert_value(root, 6,6); */
     print_tree(root);
-
-
-    /* root = insert_value(root, 99, 4); */
-    /* root = insert_value(root, 2, 2); */
-    /* free(root); */
     free_tree(root);
 
 }
-
-
-/// ***************************************************************************
-/// B Plus Tree Body Insertions
-/// ***************************************************************************
-
-void add_to_pointer_node(SplitNode split_node){
-    (void) split_node;
-}
-
-
-
+#endif
 
 #if TESTING
 int main(void) {
     printf("Testing leaf insert\n");
     testing_kick_up();
+    printf("SIZE is %zu\n", sizeof(BPTNode));
     return 0;
 }
 #endif

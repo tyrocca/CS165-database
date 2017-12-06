@@ -17,7 +17,8 @@
 /* #define MAX_KEYS ((2 * MIN_DEGREE) - 1)  // Max num of keys in a node */
 /* #define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node */
 
-#define MAX_DEGREE 3
+/* #define MAX_DEGREE 340 */
+#define MAX_DEGREE 340
 #define MAX_KEYS (MAX_DEGREE - 1)
 #define MIN_KEYS (MAX_KEYS / 2)
 #define MIN_DEGREE (MIN_KEYS + 1)
@@ -137,6 +138,8 @@ BPTNode* create_leaf();
 // ****************************************************************************
 int binary_search(int* arr, int l_pos, int r_pos, int x);
 bool is_child(BPTNode* parent, BPTNode* child);
+void bfs_traverse_tree(BPTNode* node, bool print);
+void free_tree(BPTNode* node);
 #if TESTING
 void print_node(BPTNode* node);
 void print_leaf(BPTNode* node);
@@ -157,6 +160,7 @@ size_t find_value(BPTNode* bt_node, int value, Result* result);
 /// B Plus Tree Insertion Functions
 /// **************************************************************************
 
+// Leaf functions
 void insert_into_leaf(BPTNode* bt_node, int value, size_t position);
 #if TESTING
 void test_leaf_insert();
@@ -167,17 +171,30 @@ void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_node);
 void test_split_leaf();
 #endif
 
-// FIXME;
 SplitNode* add_to_leaf(BPTNode* bt_node, int value, size_t position);
 
 
 BPTNodeStack* find_leaf(BPTNode* bt_node, int value);
 void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node);
 
-// TODO:
+// Body functions
+void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node);
+void split_body_node(
+    BPTNode* bt_node,
+    SplitNode* insert_node,
+    SplitNode* result_node
+);
+
+BPTNode* rebalanced_insert(
+    BPTNode* bt_node,
+    SplitNode* split_node,
+    BPTNodeStack* access_stack
+);
+
+// the overall insertion function
 BPTNode* insert_value(BPTNode* bt_node, int value, size_t position);
 
-// TODO:
-void add_to_pointer_node(SplitNode);
+void testing_kick_up();
+
 
 #endif

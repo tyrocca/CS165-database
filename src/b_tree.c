@@ -322,6 +322,7 @@ void increase_result_array(Result *result) {
     result->payload = realloc(result->payload, sizeof(size_t) * result->capacity);
 }
 
+// TODO unused
 void add_to_results(Result* result, size_t value) {
     if (result->num_tuples == result->capacity) {
         increase_result_array(result);
@@ -330,6 +331,13 @@ void add_to_results(Result* result, size_t value) {
     ((size_t*)result->payload)[result->num_tuples++] = value;
 }
 
+/**
+ * @brief This function inserts into our result array using memcopy
+ *
+ * @param result - object to add to
+ * @param data - the data
+ * @param num_items - number of items
+ */
 void insert_into_results(Result* result, size_t* data, size_t num_items) {
     // we want to copy into the result column
     if (result->num_tuples + num_items > result->capacity) {
@@ -342,8 +350,14 @@ void insert_into_results(Result* result, size_t* data, size_t num_items) {
     result->num_tuples += num_items;
 }
 
-/* size_t find_value(BPTNode* bt_node, int value, Result* result); */
-/* BPTNodeStack* find_values(BPTNode* bt_node, int value) { */
+/**
+ * @brief This function finds the leaf that contains a value
+ *
+ * @param bt_node - the node to search (most likely the root)
+ * @param value - the value to search for
+ *
+ * @return the right most node that contains the value
+ */
 BPTNode* search_for_leaf(BPTNode* bt_node, int value) {
     while (bt_node->is_leaf == false) {
         size_t i = 0;
@@ -365,12 +379,14 @@ BPTNode* search_for_leaf(BPTNode* bt_node, int value) {
 
 
 /**
- * @brief Takes in a range [low, high)
+ * @brief Takes in a range [low, high) and returns an result
+ * that will hold all of the indices that correlate with the range
  *
- * @param root
- * @param gte_val
- * @param lt_val
- * @param result
+ * @param root - the bplus tree root to search from
+ * @param gte_val - the min value
+ * @param lt_val - the max value
+ *
+ * @return  result - the result (allocated in function)
  */
 Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
     Result* result = malloc(sizeof(Result));
@@ -440,8 +456,6 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
  */
 Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
     Result* result = malloc(sizeof(Result));
-
-
     // get the lowest possible leaf (we have to look back in case we have
     // a situation where the same value was added multiple times
     BPTNode* low_bound = search_for_leaf(root, gte_val);
@@ -471,29 +485,24 @@ Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
     // This is the high index. This is the last value that satisfies
     // this condition
     size_t high_idx = 0;
+    size_t plus_one = 0; // whether we need to include the upper bound
     while (high_idx + 1 < high_bound->num_elements &&
             high_bound->node_vals[high_idx] < lt_val) {
         high_idx++;
     }
-    // this is the high bound
-    /* if (high_bound->node_vals[high_idx] < lt_val) { */
-    if (high_bound->node_vals[high_idx] < lt_val) {
-        high_idx = high_bound->bpt_meta.bpt_leaf.col_pos[high_idx] + 1;
-    } else {
-        high_idx = high_bound->bpt_meta.bpt_leaf.col_pos[high_idx];
+    // this is the high bound - we will add one more if the top of the bound
+    // should include this
+    if (high_idx + 1 == high_bound->num_elements &&
+            high_bound->node_vals[high_idx] < lt_val) {
+        plus_one = 1;
     }
-    /* } */
-
-    // now insert!
-    printf("range [%zu to %zu)\n",
-            low_idx,
-            high_idx);
-
-    result->capacity = high_idx - low_idx + 1;
+    // the new upper index
+    high_idx = high_bound->bpt_meta.bpt_leaf.col_pos[high_idx] + plus_one;
+    result->capacity = high_idx - low_idx;
     result->num_tuples = result->capacity;
     result->payload = malloc(sizeof(size_t) * result->capacity);
     int i = 0;
-    while (low_idx <= high_idx) {
+    while (low_idx < high_idx) {
         ((size_t*)result->payload)[i++] = low_idx++;
     }
     return result;
@@ -989,7 +998,8 @@ void testing_search() {
     print_tree(root);
 
     /* Result* result = find_values_unclustered(root, 0, 100); */
-    Result* result = find_values_clustered(root, 14, 15);
+    Result* result = find_values_clustered(root, 15, 16);
+    /* Result* result = find_values_clustered(root, 0, 100); */
     for (size_t i = 0; i < result->num_tuples;) {
         printf("%zu\n", ((size_t*)result->payload)[i++]);
     }

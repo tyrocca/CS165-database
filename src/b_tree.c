@@ -593,10 +593,10 @@ void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
                 split_node->left_leaf;
         // set right fence
         // make left and right point to eachother
-        if (split_node->right_leaf->is_leaf) {
-            split_node->left_leaf->bpt_meta.bpt_leaf.next_leaf = split_node->right_leaf;
-            split_node->right_leaf->bpt_meta.bpt_leaf.prev_leaf = split_node->left_leaf;
-        }
+        /* if (split_node->right_leaf->is_leaf) { */
+        /*     split_node->left_leaf->bpt_meta.bpt_leaf.next_leaf = split_node->right_leaf; */
+        /*     split_node->right_leaf->bpt_meta.bpt_leaf.prev_leaf = split_node->left_leaf; */
+        /* } */
         /* return; */
     }
 
@@ -675,7 +675,6 @@ void split_body_node(BPTNode* bt_node, SplitNode* insert_node, SplitNode* result
     size_t middle = temp_buf_len / 2;
 
     // set the left node (it will have equal or more)
-    bt_node->bpt_meta.bpt_ptrs.level++;
     result_node->left_leaf = bt_node;
     result_node->left_leaf->num_elements = middle;
     memcpy((void*) result_node->left_leaf->node_vals,
@@ -694,7 +693,6 @@ void split_body_node(BPTNode* bt_node, SplitNode* insert_node, SplitNode* result
             result_node->left_leaf->bpt_meta.bpt_ptrs.level;
 
     result_node->right_leaf->num_elements = num_right;
-
     memcpy((void*) result_node->right_leaf->node_vals,
             (void*) &values[middle + 1],
             num_right * sizeof(int));
@@ -724,9 +722,10 @@ BPTNode* rebalanced_insert(
         if (isEmpty(access_stack)) {
             return bt_node;
         }
-        return access_stack->array[access_stack->top];
+        return access_stack->array[0];
     } else {
         SplitNode new_split;
+        bt_node->bpt_meta.bpt_ptrs.level++;
         split_body_node(bt_node, split_node, &new_split);
         return rebalanced_insert(pop(access_stack),
                           &new_split,
@@ -775,23 +774,6 @@ BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
         access_stack
     );
 
-    /* if (parent == NULL && bt_node->is_leaf) { */
-    /*     bt_node = create_node(); */
-    /*     bt_node->bpt_meta.bpt_ptrs.level = 0; */
-    /*     insert_into_tree_body(bt_node, split_node); */
-    /* } else { */
-    /*     if */
-    /*     insert_into_tree_body(bt_node, split_node); */
-    /* } */
-    /* if (parent == NULL && bt_node->is_leaf) { */
-    /*     bt_node = create_node(); */
-    /*     bt_node->bpt_meta.bpt_ptrs.level = 0; */
-    /*     insert_into_tree_body(bt_node, split_node); */
-    /* } else { */
-    /*     if */
-    /*     insert_into_tree_body(bt_node, split_node); */
-    /* } */
-
     // cleanup memory
     free(split_node);
     free_stack(access_stack);
@@ -799,25 +781,28 @@ BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
 }
 
 void testing_kick_up() {
-    printf("Flat Tree (init) \n");
-    BPTNode* root = insert_value(NULL, 12, 4);
-    print_tree(root);
-    printf("Now adding values\n");
-    root = insert_value(root, 8, 4);
-    print_tree(root);
-    printf("Now forcing a split\n");
-    root = insert_value(root, 0, 2);
-    print_tree(root);
-    printf("Tesing second split\n");
+    /* srand(time(NULL)); */
 
-    root = insert_value(root, 3, 4);
-    root = insert_value(root, 2, 4);
-    root = insert_value(root, -2, 4);
+    BPTNode* root = NULL;
+    for (int i = 0; i < 30; i += 3) {
+        root = insert_value(root, i, (size_t) i);
+        printf("\nInserting %dth: value %d, position %d\n", i / 3, i, i);
+        print_tree(root);
+    }
+    /* for (int i = 1; i < 10; i++) { */
+    /*     root = insert_value(root, i, (size_t) i + 100); */
+    /*     printf("\nInserting %dth: value %d, position %d\n", i, i, i); */
+    /*     print_tree(root); */
+    /* } */
+    /* root = insert_value(root, 1, 1); */
+    /* root = insert_value(root, 2, 2); */
+    /* root = insert_value(root, 3, 3); */
+    /* root = insert_value(root, 4, 4); */
+    /* root = insert_value(root, 5, 5); */
+    /* root = insert_value(root, 6,6); */
     print_tree(root);
-    printf("Tesing kickup split\n");
-    /* bfs_traverse_tree(root, true); */
-    root = insert_value(root, 5, 2);
-    print_tree(root);
+
+
     /* root = insert_value(root, 99, 4); */
     /* root = insert_value(root, 2, 2); */
     /* free(root); */

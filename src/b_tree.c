@@ -1074,7 +1074,7 @@ void testing_search() {
     root = insert_value(root, 3, pos++);
     root = insert_value(root, 3, pos++);
     root = insert_value(root, 3, pos++);
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i < 25; i++) {
         for (int j = 0; j < 5; j++) {
             int val = 10 + i;
             root = insert_value(root, val, pos++);

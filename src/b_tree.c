@@ -342,6 +342,7 @@ void insert_into_results(Result* result, size_t* data, size_t num_items) {
     // we want to copy into the result column
     if (result->num_tuples + num_items > result->capacity) {
         result->capacity = result->num_tuples + num_items;
+        result->capacity *= 2;
         result->payload = realloc(result->payload, sizeof(size_t) * result->capacity);
     }
     // where to start the copying
@@ -394,37 +395,73 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
     result->num_tuples = 0;
     result->payload = malloc(sizeof(size_t) * result->capacity);
 
-    // get the lowest possible leaf (we have to look back in case we have
-    // a situation where the same value was added multiple times
+    // if the high bound is the rightmost leaf and nothing satisfies it
+    // then we know that there is no match
+    BPTNode* high_bound = search_for_leaf(root, lt_val);
+    if (high_bound->node_vals[0] < lt_val &&
+            high_bound->bpt_meta.bpt_leaf.prev_leaf == NULL) {
+        return result;
+    }
+
+    // if the low bound is the rightmost leaf and it doesn't fit
+    // in the range then we know that we have no data the satisfies
     BPTNode* low_bound = search_for_leaf(root, gte_val);
-    while (low_bound->node_vals[0] == gte_val) {
+    if (low_bound->node_vals[low_bound->num_elements - 1] < lt_val &&
+            low_bound->bpt_meta.bpt_leaf.next_leaf == NULL) {
+        return result;
+    }
+
+    // Next we need to adjust the low bound. We want the low bound to be
+    // the lowest leaf that does contain a value that satisfies the
+    // predicate - we know know to look backwards if the current "low_bound"
+    // has a value that meets this condition (if the low_bound has
+    // a leaf that is greater than or equal)
+    while (low_bound->node_vals[0] >= gte_val) {
+        // get the previous leaf
         BPTNode* prev = low_bound->bpt_meta.bpt_leaf.prev_leaf;
-        // if the low end of the current leaf equals the bound,
         // check backwards to see if that leaf could contain this value
         // (by checking the max ie: [0, 3, 3] <--> [3, 4, 5]
-        if (prev && prev->node_vals[prev->num_elements - 1] == gte_val) {
+        if (prev && prev->node_vals[prev->num_elements - 1] >= gte_val) {
+            // the previous node is gte the current, so we need to shift back
             low_bound = prev;
         } else {
             break;
         }
     }
-    // We know that we will have the leaf that contains this value
-    BPTNode* high_bound = search_for_leaf(root, lt_val);
+
+    // we should never need to push this forward
+    // if the high bound starts will a value that should not be included we
+    // need to shift back a node!
+    while (high_bound->node_vals[0] >= lt_val) {
+        BPTNode* prev = high_bound->bpt_meta.bpt_leaf.prev_leaf;
+        if (prev) {
+            high_bound = prev;
+        } else {
+            break;
+        }
+    }
 
     // find the first value that meets the condition
+    // if nothing fits, then we will have an index that equals the
+    // numbe of elements in the list
     size_t low_idx = 0;
-    while (low_bound->node_vals[low_idx] < gte_val) {
+    while (low_idx < low_bound->num_elements &&
+            low_bound->node_vals[low_idx] < gte_val) {
         low_idx++;
     }
 
-    // now add to array
+    // if the low bound doesn't equal the high bound then we will just
+    // jump to t
     while (low_bound != high_bound) {
         // if we have a situation where multiple leaves fit the bill
         // copy from the matching value over
-        insert_into_results(result,
-                            &low_bound->bpt_meta.bpt_leaf.col_pos[low_idx],
-                            low_bound->num_elements - low_idx);
-        // the next will have to be contained
+        if (low_idx != low_bound->num_elements) {
+            insert_into_results(result,
+                                &low_bound->bpt_meta.bpt_leaf.col_pos[low_idx],
+                                low_bound->num_elements - low_idx);
+        }
+        // the next will have to be contained if it doesn't equal
+        // the high bound
         low_bound = low_bound->bpt_meta.bpt_leaf.next_leaf;
         low_idx = 0;
     }
@@ -441,6 +478,10 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
         insert_into_results(result,
                             &high_bound->bpt_meta.bpt_leaf.col_pos[low_idx],
                             high_idx - low_idx);
+        if (result->capacity != result->num_tuples) {
+            result->payload = realloc(result->payload,
+                                      sizeof(size_t) * result->num_tuples);
+        }
     }
     return result;
 }
@@ -456,30 +497,68 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
  */
 Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
     Result* result = malloc(sizeof(Result));
-    // get the lowest possible leaf (we have to look back in case we have
-    // a situation where the same value was added multiple times
+    result->num_tuples = 0;
+    result->payload = NULL;
+
+    // get right bound and check that it works
+    BPTNode* high_bound = search_for_leaf(root, lt_val);
+    if (high_bound->node_vals[0] < lt_val &&
+            high_bound->bpt_meta.bpt_leaf.prev_leaf == NULL) {
+        return result;
+    }
+
+    // get left bound and check that it also works
     BPTNode* low_bound = search_for_leaf(root, gte_val);
-    while (low_bound->node_vals[0] == gte_val) {
+    if (low_bound->node_vals[low_bound->num_elements - 1] < lt_val &&
+            low_bound->bpt_meta.bpt_leaf.next_leaf == NULL) {
+        return result;
+    }
+
+    // next find the lowest low bound that satisfies the predicate
+    // (we need to do this check to make sure we don't miss out on the
+    //  far left values)
+    while (low_bound->node_vals[0] >= gte_val) {
+        // get the previous leaf
         BPTNode* prev = low_bound->bpt_meta.bpt_leaf.prev_leaf;
-        // if the low end of the current leaf equals the bound,
         // check backwards to see if that leaf could contain this value
         // (by checking the max ie: [0, 3, 3] <--> [3, 4, 5]
-        if (prev && prev->node_vals[prev->num_elements - 1] == gte_val) {
+        if (prev && prev->node_vals[prev->num_elements - 1] >= gte_val) {
+            // the previous node is gte the current, so we need to shift back
             low_bound = prev;
         } else {
             break;
         }
     }
-    // We know that we will have the leaf that contains this value
-    BPTNode* high_bound = search_for_leaf(root, lt_val);
+
+    // reign in the upper bound so we only go as far as the right most
+    while (high_bound->node_vals[0] >= lt_val) {
+        BPTNode* prev = high_bound->bpt_meta.bpt_leaf.prev_leaf;
+        if (prev) {
+            high_bound = prev;
+        } else {
+            break;
+        }
+    }
 
     // find the first value that meets the condition -
     // we then want to store this index as the start of the
     // range of indices that we will be getting
     size_t low_idx = 0;
-    while (low_bound->node_vals[low_idx] < gte_val) {
+    while (low_idx < low_bound->num_elements &&
+            low_bound->node_vals[low_idx] < gte_val) {
         low_idx++;
+        if (low_idx == low_bound->num_elements) {
+            // TODO: Warning there could be problems from doing this
+            low_bound = low_bound->bpt_meta.bpt_leaf.next_leaf;
+            low_idx = 0;
+
+        }
     }
+    // if the left bound doesn't have anything that matches then
+    // means that the low bound should equal the high bound
+    // we shouldn't have this case
+    assert(low_idx != low_bound->num_elements);
+
     low_idx = low_bound->bpt_meta.bpt_leaf.col_pos[low_idx];
 
     // This is the high index. This is the last value that satisfies
@@ -490,12 +569,14 @@ Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
             high_bound->node_vals[high_idx] < lt_val) {
         high_idx++;
     }
+
     // this is the high bound - we will add one more if the top of the bound
-    // should include this
+    // should include this extra value
     if (high_idx + 1 == high_bound->num_elements &&
             high_bound->node_vals[high_idx] < lt_val) {
         plus_one = 1;
     }
+
     // the new upper index
     high_idx = high_bound->bpt_meta.bpt_leaf.col_pos[high_idx] + plus_one;
     result->capacity = high_idx - low_idx;
@@ -611,7 +692,7 @@ void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_leaf) 
     // this is the loop that handles the insertion
     size_t i = 0;
     while (i < MAX_KEYS) {
-        if (value < values[i] || (value == values[i] && pos > positions[i])) {
+        if (value < values[i] || (value == values[i] && pos < positions[i])) {
             // shift positions right
             memmove((void*) &values[i + 1],
                     (void*) &values[i],
@@ -977,7 +1058,6 @@ void testing_kick_up() {
     for (int i = 1; i < 100; i++) {
         int val = rand() % 200;
         size_t pos = (size_t) rand() % 2000;
-
         /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
         root = insert_value(root, val, pos);
     }
@@ -985,26 +1065,37 @@ void testing_kick_up() {
     free_tree(root);
 
 }
+
 void testing_search() {
     srand(time(NULL));
     BPTNode* root = NULL;
-    for (int i = 0; i < 20; i++) {
-        int val = 10 + i;
-        /* size_t pos = (size_t) rand() % 2000; */
-        size_t pos = i;
-        /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
-        root = insert_value(root, val, pos);
+    size_t pos = 0;
+    root = insert_value(root, 3, pos++);
+    root = insert_value(root, 3, pos++);
+    root = insert_value(root, 3, pos++);
+    root = insert_value(root, 3, pos++);
+    for (int i = 0; i < 200; i++) {
+        for (int j = 0; j < 5; j++) {
+            int val = 10 + i;
+            root = insert_value(root, val, pos++);
+        }
     }
+    /* root = insert_value(root, 10, pos++); */
+    /* root = insert_value(root, 10, pos++); */
+    /* root = insert_value(root, 10, pos++); */
+    /* root = insert_value(root, 10, pos++); */
+    /*     } */
+    /* } */
     print_tree(root);
 
     /* Result* result = find_values_unclustered(root, 0, 100); */
-    Result* result = find_values_clustered(root, 15, 16);
-    /* Result* result = find_values_clustered(root, 0, 100); */
+    Result* result = find_values_clustered(root, 4, 5);
+    /* Result* result = find_values_unclustered(root, 4, 6); */
+    /* Result* result = find_values_unclustered(root, 15, 18); */
     for (size_t i = 0; i < result->num_tuples;) {
         printf("%zu\n", ((size_t*)result->payload)[i++]);
     }
     printf("\n TOTAL: %zu\n", result->num_tuples);
-
     free(result->payload);
     free(result);
     free_tree(root);

@@ -203,7 +203,7 @@ void print_node(BPTNode* node) {
     if (leafcount == 0) {
         printf("\n");
     } else {
-        printf("\t");
+        /* printf("\t"); */
     }
 }
 
@@ -430,7 +430,6 @@ void test_leaf_insert() {
 }
 #endif
 
-
 /**
  * @brief Function that takes in a full leaf and a next value and
  *  returns a struct that contains the new left and right pointers
@@ -580,29 +579,161 @@ BPTNodeStack* find_leaf(BPTNode* bt_node, int value) {
     return access_stack;
 }
 
+
 void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node) {
     assert(bt_node != NULL);
     assert(split_node != NULL);
-
     assert(bt_node->num_elements < MAX_KEYS);
 
     // when we have a brand new node we need to also set the left fence value
     // In all other cases we will just set the right fence
     if (bt_node->num_elements == 0) {
+        // set left fence
         bt_node->bpt_meta.bpt_ptrs.children[bt_node->num_elements] =
                 split_node->left_leaf;
+        // set right fence
+        // make left and right point to eachother
+        if (split_node->right_leaf->is_leaf) {
+            split_node->left_leaf->bpt_meta.bpt_leaf.next_leaf = split_node->right_leaf;
+            split_node->right_leaf->bpt_meta.bpt_leaf.prev_leaf = split_node->left_leaf;
+        }
+        /* return; */
     }
-    // TODO: Determine if this is the correct place to make them point to
-    // eachother - should this happen in the creation of the split??
-    split_node->left_leaf->bpt_meta.bpt_leaf.next_leaf = split_node->right_leaf;
-    split_node->right_leaf->bpt_meta.bpt_leaf.prev_leaf = split_node->left_leaf;
 
-    // set the middle and then increment
-    bt_node->node_vals[bt_node->num_elements++] = split_node->middle_val;
+    // inserting in all other cases - get the
+    size_t i = 0;
+    while (i < bt_node->num_elements) {
+        if (split_node->middle_val < bt_node->node_vals[i]) {
+            // shift positions right
+            memmove((void*) &bt_node->node_vals[i + 1],
+                    (void*) &bt_node->node_vals[i],
+                    (bt_node->num_elements - i) * sizeof(int));
+            // shift pointers right
+            memmove((void*) &bt_node->bpt_meta.bpt_ptrs.children[i + 2],
+                    (void*) &bt_node->bpt_meta.bpt_ptrs.children[i + 1],
+                    (bt_node->num_elements - i) * sizeof(BPTNode*));
+            break;
+        }
+        i++;
+    }
 
-    // At the end we will set the right leaf
-    bt_node->bpt_meta.bpt_ptrs.children[bt_node->num_elements] =
-            split_node->right_leaf;
+    /* if (split_node->right_leaf->is_leaf) { */
+    /*     // node that is being added to */
+    /*     BPTNode* temp = bt_node->bpt_meta.bpt_ptrs.children[i]; */
+    /*     split_node->right_leaf->bpt_meta.bpt_leaf.next_leaf = */
+    /*             temp->bpt_meta.bpt_leaf.next_leaf; */
+
+    /* } */
+
+    // place the node in the correct spot
+    bt_node->node_vals[i] = split_node->middle_val;
+    bt_node->bpt_meta.bpt_ptrs.children[i + 1] = split_node->right_leaf;
+
+    // increase the number of elements
+    bt_node->num_elements++;
+}
+
+void split_body_node(BPTNode* bt_node, SplitNode* insert_node, SplitNode* result_node) {
+    assert(bt_node->is_leaf == false);
+    assert(bt_node->num_elements == MAX_KEYS);
+
+    // this is the temp array
+    size_t temp_buf_len = MAX_KEYS + 1;
+    /* size_t temp_buf_len = MAX_KEYS + 1; */
+    int values[temp_buf_len];
+    BPTNode* pointers[MAX_DEGREE + 1];
+
+    // set these to be equal
+    memcpy((void*) values,
+            (void*)bt_node->node_vals,
+            MAX_KEYS * sizeof(int));
+    memcpy((void*) pointers,
+            (void*)bt_node->bpt_meta.bpt_ptrs.children,
+            MAX_DEGREE * sizeof(BPTNode*));
+
+    // this is the loop that handles the insertion
+    size_t i = 0;
+    while (i < MAX_KEYS) {
+        if (insert_node->middle_val < bt_node->node_vals[i]) {
+            // shift positions right
+            memmove((void*) &values[i + 1],
+                    (void*) &values[i],
+                    (MAX_KEYS - i) * sizeof(int));
+            // shift pointers right
+            memmove((void*) &pointers[i + 2],
+                    (void*) &pointers[i + 1],
+                    (MAX_KEYS - i) * sizeof(BPTNode*));
+            break;
+        }
+        i++;
+    }
+    values[i] = insert_node->middle_val;
+    pointers[i+1] = insert_node->right_leaf;
+
+    // now that we have a buffer full of the results we want to
+    // place the values in the correct nodes
+    size_t middle = temp_buf_len / 2;
+
+    // set the left node (it will have equal or more)
+    bt_node->bpt_meta.bpt_ptrs.level++;
+    result_node->left_leaf = bt_node;
+    result_node->left_leaf->num_elements = middle;
+    memcpy((void*) result_node->left_leaf->node_vals,
+            (void*) values,
+            middle * sizeof(int));
+    memcpy((void*) result_node->left_leaf->bpt_meta.bpt_leaf.col_pos,
+            (void*) pointers,
+            (middle + 1) * sizeof(size_t));
+
+    // set the right leaf to be all the current values at the n/2 + 1 location
+    // we will take everything not including the middle
+    size_t num_right = temp_buf_len - middle - 1;
+    // we need to create a new node now
+    result_node->right_leaf = create_node();
+    result_node->right_leaf->bpt_meta.bpt_ptrs.level =
+            result_node->left_leaf->bpt_meta.bpt_ptrs.level;
+
+    result_node->right_leaf->num_elements = num_right;
+
+    memcpy((void*) result_node->right_leaf->node_vals,
+            (void*) &values[middle + 1],
+            num_right * sizeof(int));
+    memcpy((void*) result_node->right_leaf->bpt_meta.bpt_leaf.col_pos,
+            (void*) &pointers[middle + 1],
+            (num_right + 1) * sizeof(size_t));
+
+    // set the median value
+    result_node->middle_val = values[middle];
+
+    return;
+}
+
+BPTNode* rebalanced_insert(
+    BPTNode* bt_node,
+    SplitNode* split_node,
+    BPTNodeStack* access_stack
+) {
+    if (bt_node == NULL) {
+        bt_node = create_node();
+        bt_node->bpt_meta.bpt_ptrs.level = 0;
+        // nodee to update
+        insert_into_tree_body(bt_node, split_node);
+        return bt_node;
+    } else if (bt_node->num_elements < MAX_KEYS) {
+        insert_into_tree_body(bt_node, split_node);
+        if (isEmpty(access_stack)) {
+            return bt_node;
+        }
+        return access_stack->array[access_stack->top];
+    } else {
+        SplitNode new_split;
+        split_body_node(bt_node, split_node, &new_split);
+        return rebalanced_insert(pop(access_stack),
+                          &new_split,
+                          access_stack);
+
+    }
+    return NULL;
 }
 
 /**
@@ -635,14 +766,31 @@ BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
     }
 
     // Handle rebalancing - this is the case when we have 1 empty value
-    if (isEmpty(access_stack)) {
-        // base case, this is our first split
-        bt_node = create_node();
-        bt_node->bpt_meta.bpt_ptrs.level = 0;
-        insert_into_tree_body(bt_node, split_node);
-    } else {
-        insert_into_tree_body(bt_node, split_node);
-    }
+
+
+    /* BPTNode* parent = pop(access_stack); */
+    bt_node = rebalanced_insert(
+        pop(access_stack),
+        split_node,
+        access_stack
+    );
+
+    /* if (parent == NULL && bt_node->is_leaf) { */
+    /*     bt_node = create_node(); */
+    /*     bt_node->bpt_meta.bpt_ptrs.level = 0; */
+    /*     insert_into_tree_body(bt_node, split_node); */
+    /* } else { */
+    /*     if */
+    /*     insert_into_tree_body(bt_node, split_node); */
+    /* } */
+    /* if (parent == NULL && bt_node->is_leaf) { */
+    /*     bt_node = create_node(); */
+    /*     bt_node->bpt_meta.bpt_ptrs.level = 0; */
+    /*     insert_into_tree_body(bt_node, split_node); */
+    /* } else { */
+    /*     if */
+    /*     insert_into_tree_body(bt_node, split_node); */
+    /* } */
 
     // cleanup memory
     free(split_node);
@@ -651,21 +799,29 @@ BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
 }
 
 void testing_kick_up() {
+    printf("Flat Tree (init) \n");
     BPTNode* root = insert_value(NULL, 12, 4);
-    /* print_tree(root); */
+    print_tree(root);
     printf("Now adding values\n");
     root = insert_value(root, 8, 4);
+    print_tree(root);
+    printf("Now forcing a split\n");
     root = insert_value(root, 0, 2);
-    /* print_tree(root); */
+    print_tree(root);
+    printf("Tesing second split\n");
 
-    /* root = insert_value(root, 3, 4); */
-    root = insert_value(root, 33, 4);
-    /* print_tree(root); */
-    bfs_traverse_tree(root, true);
-    /* root = insert_value(root, 5, 2); */
+    root = insert_value(root, 3, 4);
+    root = insert_value(root, 2, 4);
+    root = insert_value(root, -2, 4);
+    print_tree(root);
+    printf("Tesing kickup split\n");
+    /* bfs_traverse_tree(root, true); */
+    root = insert_value(root, 5, 2);
+    print_tree(root);
     /* root = insert_value(root, 99, 4); */
     /* root = insert_value(root, 2, 2); */
     /* free(root); */
+    free_tree(root);
 
 }
 

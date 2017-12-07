@@ -379,6 +379,14 @@ BPTNode* search_for_leaf(BPTNode* bt_node, int value) {
 }
 
 
+/**
+ * @brief This function finds the clustered column value's insertion point
+ *
+ * @param root - root of tree
+ * @param value - value to add to tree
+ *
+ * @return - this is the place where we will insert
+ */
 size_t btree_find_insert_position(BPTNode* root, int value) {
     BPTNode* containing_leaf = search_for_leaf(root, value);
     // we get a leaf
@@ -1159,8 +1167,10 @@ void testing_search() {
     /* print_tree(root); */
 
 
+
     /* Result* result = find_values_unclustered(root, 0, 100); */
     Result* result = find_values_clustered(root, 4, 5);
+    printf("Should insert at %zu ", btree_find_insert_position(root, 3));
     /* Result* result = find_values_unclustered(root, 4, 6); */
     /* Result* result = find_values_unclustered(root, 15, 18); */
     for (size_t i = 0; i < result->num_tuples;) {

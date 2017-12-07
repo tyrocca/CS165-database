@@ -17,8 +17,8 @@
 /* #define MAX_KEYS ((2 * MIN_DEGREE) - 1)  // Max num of keys in a node */
 /* #define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node */
 
-/* #define MAX_DEGREE 340 */
-#define MAX_DEGREE 4
+#define MAX_DEGREE 340
+/* #define MAX_DEGREE 4 */
 #define MAX_KEYS (MAX_DEGREE - 1)
 #define MIN_KEYS (MAX_KEYS / 2)
 #define MIN_DEGREE (MIN_KEYS + 1)

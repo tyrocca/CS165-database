@@ -1105,10 +1105,10 @@ void testing_search() {
 
 
 #if TESTING
-int main(void) {
-    printf("Testing leaf insert\n");
-    testing_search();
-    printf("SIZE is %zu\n", sizeof(BPTNode));
-    return 0;
-}
+/* int main(void) { */
+/*     printf("Testing leaf insert\n"); */
+/*     testing_search(); */
+/*     printf("SIZE is %zu\n", sizeof(BPTNode)); */
+/*     return 0; */
+/* } */
 #endif

@@ -117,6 +117,7 @@ typedef struct Table {
     size_t col_count;
     size_t table_size;
     size_t table_length;
+    size_t primary_col_pos;
     Column* primary_index;
 } Table;
 

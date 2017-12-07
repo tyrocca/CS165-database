@@ -379,6 +379,30 @@ BPTNode* search_for_leaf(BPTNode* bt_node, int value) {
 }
 
 
+size_t btree_find_insert_position(BPTNode* root, int value) {
+    BPTNode* containing_leaf = search_for_leaf(root, value);
+    // we get a leaf
+    //  3 cases - the leaf is too big - this
+    // check backwards to see if that leaf could contain this value
+    while (containing_leaf->node_vals[0] > value) {
+        BPTNode* prev = containing_leaf->bpt_meta.bpt_leaf.prev_leaf;
+        assert(prev != NULL);  // we should never go to far back
+        if (prev->node_vals[prev->num_elements - 1] >= value) {
+            // the previous node is gte the current, so we need to shift back
+            containing_leaf = prev;
+        } else {
+            break;
+        }
+    }
+    size_t insert_idx = 0;
+    // while the value at this index
+    while (containing_leaf->node_vals[insert_idx] > value) {
+        insert_idx++;
+    }
+    assert(insert_idx < containing_leaf->num_elements);
+    return containing_leaf->bpt_meta.bpt_leaf.col_pos[insert_idx];
+}
+
 /**
  * @brief Takes in a range [low, high) and returns an result
  * that will hold all of the indices that correlate with the range
@@ -1131,8 +1155,8 @@ void testing_search() {
     /*     } */
     /* } */
     print_tree(root);
-    root = btree_insert_value(root, 3, 19, true);
-    print_tree(root);
+    /* root = btree_insert_value(root, 3, 19, true); */
+    /* print_tree(root); */
 
 
     /* Result* result = find_values_unclustered(root, 0, 100); */

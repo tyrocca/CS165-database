@@ -1,5 +1,6 @@
 #include <limits.h>
 #include <assert.h>
+#include <string.h>
 #include "db_operations.h"
 #include "client_context.h"
 #include "b_tree.h"
@@ -90,7 +91,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
     //
     // Column insertion
     //   - The column has a clustered index
-    //   - The column has an
+    //   - The column has an unclustered index
     //
     // if the column we are inserting into has
     if (insert_op.table->primary_index == NULL) {
@@ -103,14 +104,78 @@ char* process_insert(InsertOperator insert_op, Status* status) {
         // do the insertion in threads!
         for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
             Column* col = &insert_op.table->columns[idx];
-            // if we have a
+            // if we have an unclusted index on an unclustered column
+            // we are pretty happy because that means we don't need to
+            // shift the values
             if (col->index_type == BTREE) {
                 BPTNode* bt_root = ((BPTNode*) col->index);
                 col->index = (void*) btree_insert_value(bt_root,
-                                                  insert_op.values[idx],
-                                                  row_idx,
-                                                  false);
+                                                        insert_op.values[idx],
+                                                        row_idx,
+                                                        false);
             }
+            // insert into the base data
+            insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
+        }
+    } else {
+        // let's imagine that this works - it finds the index where the value
+        // should be inserted - we should actually call this as this is the
+        // new max index
+        Column* index_col = insert_op.table->primary_index;
+        int insert_val = insert_op.values[insert_op.table->primary_col_pos];
+        int* index_col_values = (int*) index_col->data;
+        // we should increase the size of the table - this function will do that
+        // we use the next index as a place holder
+        size_t row_idx = next_table_idx(insert_op.table, status);
+        if (status->code != OK) {
+            return NULL;
+        }
+        // whether we need to shift the values
+        bool shift_values = true;
+        // if we check the max and it is less, we can just append
+        if (index_col->index == NULL ||
+            index_col_values[insert_op.table->table_size - 1] <= insert_val
+        ) {
+            shift_values = false;
+        } else if (index_col_values[0] > insert_val) {
+            shift_values = true;
+            row_idx = 0;
+        } else {
+            if (index_col->index_type == BTREE) {
+                row_idx = btree_find_insert_position((BPTNode*) index_col->index,
+                                                     insert_val);
+            } else {
+                // TODO
+                assert("NOT_IMPLEMENTED" == NULL);
+            }
+            shift_values = row_idx + 1 < insert_op.table->table_length;
+        }
+
+        // TODO: performace improvement make it so we
+        // do the insertion in threads!
+        for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
+            Column* col = &insert_op.table->columns[idx];
+            // if we have an unclusted index on an unclustered column
+            // we are pretty happy because that means we don't need to
+            // shift the values
+            if (col->index_type == BTREE) {
+                BPTNode* bt_root = ((BPTNode*) col->index);
+                col->index = (void*) btree_insert_value(bt_root,
+                                                        insert_op.values[idx],
+                                                        row_idx,
+                                                        shift_values);
+            }
+            // if we are inserting make sure the memory move is necessary
+            // if it is we want to shift the base values down one position
+            // starting with the current location
+            if (row_idx + 1 < insert_op.table->table_length) {
+                memmove(
+                    (void*) &insert_op.table->columns[idx].data[row_idx + 1],
+                    (void*) &insert_op.table->columns[idx].data[row_idx],
+                    insert_op.table->table_length - row_idx
+                );
+            }
+            // this is the operation to set the value
             insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
         }
     }

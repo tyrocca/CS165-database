@@ -160,6 +160,7 @@ void add_to_results(Result* result, size_t value);
 // memcopy used for unclustered
 void insert_into_results(Result* result, size_t* data, size_t num_items);
 BPTNode* search_for_leaf(BPTNode* bt_node, int value);
+size_t btree_find_insert_position(BPTNode* root, int value);
 Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val);
 Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val);
 

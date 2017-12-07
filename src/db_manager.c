@@ -48,6 +48,7 @@ Column* create_column(
             new_col->clustered = clustered;
             if (clustered) {
                 table->primary_index = new_col;
+                table->primary_col_pos = idx;
             }
             // TODO: size?
             new_col->size_ptr = &table->table_size;
@@ -100,6 +101,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
     new_table->table_size = 0;
     new_table->col_count = num_columns;
     new_table->primary_index = NULL;
+    new_table->primary_col_pos = 0;
 
     // allocate new columns
     // TODO: is calloc necessary here

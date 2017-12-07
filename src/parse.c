@@ -199,8 +199,18 @@ void parse_create_col(char* create_arguments, Status* status) {
     // TODO - use the lookup thing here
     char* db_name = next_db_field(create_arguments_index, &status->msg_type);
     char* table_name = next_token(create_arguments_index, &status->msg_type);
+
     // TODO - enable sorting
-    bool sorted = false;
+    bool clustered = false;
+    IndexType index_type = NONE;
+    // this means there is more to come
+    if (create_arguments != NULL) {
+        char* index_string = next_token(create_arguments_index, &status->msg_type);
+        index_type = strncmp(index_string, "btree", 5) == 0 ? BTREE : SORTED;
+        assert(create_arguments_index != NULL);
+        char* cluster_param = next_token(create_arguments_index, &status->msg_type);
+        clustered = strncmp(cluster_param, "clustered", 9) == 0;
+    }
 
     // not enough arguments
     if (status->msg_type == INCORRECT_FORMAT) {
@@ -211,18 +221,21 @@ void parse_create_col(char* create_arguments, Status* status) {
 
     // trim quotes and check for finishing parenthesis.
     column_name = trim_quotes(column_name);
-    int last_char = strlen(table_name) - 1;
-    if (last_char <= 0 || table_name[last_char] != ')') {
-        status->msg_type = INCORRECT_FORMAT;
-        status->code = ERROR;
-        status->msg = "Create Col does doesn't end with )";
-        return;
+    if (index_type == NONE) {
+        int last_char = strlen(table_name) - 1;
+        if (last_char <= 0 || table_name[last_char] != ')') {
+            status->msg_type = INCORRECT_FORMAT;
+            status->code = ERROR;
+            status->msg = "Create Col does doesn't end with )";
+            return;
+        }
+        // replace final ')' with null-termination character.
+        table_name[last_char] = '\0';
     }
-    // replace final ')' with null-termination character.
-    table_name[last_char] = '\0';
+
     Table* tbl = get_table_from_db(db_name, table_name, status);
     if (tbl) {
-        create_column(column_name, tbl, sorted, status);
+        create_column(column_name, tbl, index_type, clustered, status);
     }
 }
 

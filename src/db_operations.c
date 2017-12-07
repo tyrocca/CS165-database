@@ -2,6 +2,7 @@
 #include <assert.h>
 #include "db_operations.h"
 #include "client_context.h"
+#include "b_tree.h"
 
 // Min and Max helper functions
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -83,13 +84,35 @@ long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
  * @return string
  */
 char* process_insert(InsertOperator insert_op, Status* status) {
-    size_t row_idx = next_table_idx(insert_op.table, status);
-    if (status->code != OK) {
-        return NULL;
-    }
-    // set the values
-    for(size_t idx = 0; idx < insert_op.table->col_count; idx++) {
-        insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
+    // so we now need to have several cases
+    // a) if the table has no primary index
+    // b) the table has a primary index
+    //
+    // Column insertion
+    //   - The column has a clustered index
+    //   - The column has an
+    //
+    // if the column we are inserting into has
+    if (insert_op.table->primary_index == NULL) {
+        size_t row_idx = next_table_idx(insert_op.table, status);
+        if (status->code != OK) {
+            return NULL;
+        }
+        // set the values
+        // TODO: performace improvement make it so we
+        // do the insertion in threads!
+        for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
+            Column* col = &insert_op.table->columns[idx];
+            // if we have a
+            if (col->index_type == BTREE) {
+                BPTNode* bt_root = ((BPTNode*) col->index);
+                col->index = (void*) btree_insert_value(bt_root,
+                                                  insert_op.values[idx],
+                                                  row_idx,
+                                                  false);
+            }
+            insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
+        }
     }
     status->msg_type = OK_DONE;
     free(insert_op.values);

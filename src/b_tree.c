@@ -391,6 +391,7 @@ BPTNode* search_for_leaf(BPTNode* bt_node, int value) {
  */
 Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
     Result* result = malloc(sizeof(Result));
+    result->data_type = INDEX;
     result->capacity = MAX_KEYS;
     result->num_tuples = 0;
     result->payload = malloc(sizeof(size_t) * result->capacity);
@@ -497,6 +498,7 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
  */
 Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
     Result* result = malloc(sizeof(Result));
+    result->data_type = INDEX;
     result->num_tuples = 0;
     result->payload = NULL;
 
@@ -1011,10 +1013,16 @@ BPTNode* rebalanced_insert(
  * @param bt_node
  * @param value
  * @param position
+ * @param update_positions
  *
  * @return new head of the btree
  */
-BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
+BPTNode* btree_insert_value(
+    BPTNode* bt_node,
+    int value,
+    size_t position,
+    bool update_positions
+) {
     // if we don't have a first value, make a first value
     if (bt_node == NULL) {
         bt_node = create_leaf();
@@ -1027,6 +1035,43 @@ BPTNode* insert_value(BPTNode* bt_node, int value, size_t position) {
     BPTNodeStack* access_stack = find_leaf(bt_node, value);
     BPTNode* leaf = pop(access_stack);
     SplitNode* split_node = add_to_leaf(leaf, value, position);
+
+    // this means that we want to update the positions
+    // TODO: make it smarter for primary (only shift right)
+    if (update_positions == true) {
+        // go left and update all those positions
+        BPTNode* left_update = leaf->bpt_meta.bpt_leaf.prev_leaf;
+        while (left_update != NULL) {
+            size_t* pos_array = left_update->bpt_meta.bpt_leaf.col_pos;
+            for (size_t i = 0; i < left_update->num_elements; i++) {
+                // we need to shift all the values to the right in each leaf
+                if (pos_array[i] >= position) {
+                    pos_array[i]++;
+                }
+            }
+            left_update = left_update->bpt_meta.bpt_leaf.prev_leaf;
+        }
+
+        // go right and update all of those positions
+        BPTNode* right_update = leaf;
+        bool set_one = false; // if we alreay have a value that fites the case
+        while (right_update != NULL) {
+            size_t* pos_array = right_update->bpt_meta.bpt_leaf.col_pos;
+            for (size_t i = 0; i < right_update->num_elements; i++) {
+                // we need to shift all the values to the right in each leaf
+                if (pos_array[i] > position) {
+                    pos_array[i]++;
+                } else if (pos_array[i] == position) {
+                    if (set_one == false && right_update->node_vals[i] == value) {
+                        set_one = true;
+                    } else {
+                        pos_array[i]++;
+                    }
+                }
+            }
+            right_update = right_update->bpt_meta.bpt_leaf.next_leaf;
+        }
+    }
 
     // if we don't have to split, we just return the same head
     if (split_node == NULL) {
@@ -1059,7 +1104,7 @@ void testing_kick_up() {
         int val = rand() % 200;
         size_t pos = (size_t) rand() % 2000;
         /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
-        root = insert_value(root, val, pos);
+        root = btree_insert_value(root, val, pos, false);
     }
     print_tree(root);
     free_tree(root);
@@ -1070,23 +1115,25 @@ void testing_search() {
     srand(time(NULL));
     BPTNode* root = NULL;
     size_t pos = 0;
-    root = insert_value(root, 3, pos++);
-    root = insert_value(root, 3, pos++);
-    root = insert_value(root, 3, pos++);
-    root = insert_value(root, 3, pos++);
-    for (int i = 0; i < 25; i++) {
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 5; j++) {
-            int val = 10 + i;
-            root = insert_value(root, val, pos++);
+            int val = i;
+            root = btree_insert_value(root, val, pos++, false);
         }
     }
-    /* root = insert_value(root, 10, pos++); */
-    /* root = insert_value(root, 10, pos++); */
-    /* root = insert_value(root, 10, pos++); */
-    /* root = insert_value(root, 10, pos++); */
+    /* root = btree_insert_value(root, 10, pos++); */
+    /* root = btree_insert_value(root, 10, pos++); */
+    /* root = btree_insert_value(root, 10, pos++); */
     /*     } */
     /* } */
     print_tree(root);
+    root = btree_insert_value(root, 3, 19, true);
+    print_tree(root);
+
 
     /* Result* result = find_values_unclustered(root, 0, 100); */
     Result* result = find_values_clustered(root, 4, 5);
@@ -1105,10 +1152,10 @@ void testing_search() {
 
 
 #if TESTING
-/* int main(void) { */
-/*     printf("Testing leaf insert\n"); */
-/*     testing_search(); */
-/*     printf("SIZE is %zu\n", sizeof(BPTNode)); */
-/*     return 0; */
-/* } */
+int main(void) {
+    printf("Testing leaf insert\n");
+    testing_search();
+    printf("SIZE is %zu\n", sizeof(BPTNode));
+    return 0;
+}
 #endif

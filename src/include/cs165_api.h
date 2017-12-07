@@ -28,6 +28,7 @@ SOFTWARE.
 // TODO - needed
 /* #include <stdio.h> */
 #include "message.h"
+/* #include "b_tree.h" */
 
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
@@ -51,11 +52,17 @@ SOFTWARE.
  **/
 
 typedef enum DataType {
-     INT,
-     LONG,
-     DOUBLE,
-     INDEX,
+    INT,
+    LONG,
+    DOUBLE,
+    INDEX
 } DataType;
+
+typedef enum IndexType {
+    NONE,
+    BTREE,
+    SORTED
+} IndexType;
 
 typedef union DataPtr {
     int* int_array;
@@ -79,12 +86,12 @@ struct Comparator;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME];
-    size_t* size_ptr;
-    int* data; // TODO - make this datatype
-    // You will implement column indexes later.
-    void* index;
-    //struct ColumnIndex *index;
-    bool clustered;
+    size_t* size_ptr;           // The size pointer
+    int* data;                  // TODO - make this datatype
+    /* Table* table;               // The column's table */
+    void* index;                // Pointer to the index
+    IndexType index_type;       // The type of index
+    bool clustered;             // Bool to indicate if the column is clustered
 } Column;
 
 
@@ -110,6 +117,7 @@ typedef struct Table {
     size_t col_count;
     size_t table_size;
     size_t table_length;
+    Column* primary_index;
 } Table;
 
 /**
@@ -165,8 +173,9 @@ typedef enum ComparatorType {
  */
 typedef struct Result {
     size_t num_tuples;
-    DataType data_type;
+    size_t capacity;
     void *payload;
+    DataType data_type;
     bool free_after_use;
 } Result;
 
@@ -355,17 +364,18 @@ Status sync_db(Db* db);
 Status add_db(const char* db_name, bool from_load, size_t capacity);
 
 Table* create_table(
-  Db* db,
-  const char* name,
-  size_t num_columns,
-  Status *status
+    Db* db,
+    const char* name,
+    size_t num_columns,
+    Status *status
 );
 
 Column* create_column(
-  char *name,
-  Table *table,
-  bool sorted,
-  Status *ret_status
+    char *name,
+    Table* table,
+    IndexType index_type,
+    bool clustered,
+    Status *ret_status
 );
 
 // functions around shutdown

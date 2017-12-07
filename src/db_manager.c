@@ -14,14 +14,20 @@ Db* db_head = NULL;
  *
  * @param name - column name
  * @param table - table name
- * @param sorted - whether it is sorted
+ * @param index_type - the type of index
+ * @param clustered - whether it is clustered on this column
  * @param ret_status - status struct
  *
  * @return The created column
  */
-Column* create_column(char *name, Table* table, bool sorted, Status *ret_status) {
+Column* create_column(
+    char *name,
+    Table* table,
+    IndexType index_type,
+    bool clustered,
+    Status *ret_status
+) {
     // TODO: add in sorting ability
-    (void) sorted;
     ret_status->code = ERROR;
     Column* new_col = NULL;
 
@@ -35,8 +41,14 @@ Column* create_column(char *name, Table* table, bool sorted, Status *ret_status)
             // set the new column
             new_col = table->columns + idx;
             strcpy(new_col->name, name);
-            // TODO: add indexes
             new_col->index = NULL;
+            new_col->index_type = index_type;
+            // if we have a clustered column we need that column to be
+            // specified as the primary index
+            new_col->clustered = clustered;
+            if (clustered) {
+                table->primary_index = new_col;
+            }
             // TODO: size?
             new_col->size_ptr = &table->table_size;
             new_col->data = malloc(table->table_length * sizeof(int));
@@ -87,6 +99,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
     new_table->table_length = DEFAULT_COLUMN_SIZE;
     new_table->table_size = 0;
     new_table->col_count = num_columns;
+    new_table->primary_index = NULL;
 
     // allocate new columns
     // TODO: is calloc necessary here

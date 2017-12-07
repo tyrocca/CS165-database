@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "cs165_api.h"
-#define TESTING 0
+/* #include "cs165_api.h" */
+#define TESTING 1
 
 /// ***************************************************************************
 /// B Tree Initialization variables
@@ -17,12 +17,8 @@
 /* #define MAX_KEYS ((2 * MIN_DEGREE) - 1)  // Max num of keys in a node */
 /* #define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node */
 
-/* #if TESTING */
-#define MAX_DEGREE 4
-/* #else */
 /* #define MAX_DEGREE 340 */
-/* #endif */
-
+#define MAX_DEGREE 4
 #define MAX_KEYS (MAX_DEGREE - 1)
 #define MIN_KEYS (MAX_KEYS / 2)
 #define MIN_DEGREE (MIN_KEYS + 1)
@@ -33,8 +29,21 @@
 /// ***************************************************************************
 /// B Plus Tree Types
 /// ***************************************************************************
+typedef enum DataType {
+    INT,
+    LONG,
+    DOUBLE,
+    INDEX
+} DataType;
 
 // TEMP - until integrated
+typedef struct Result {
+    size_t num_tuples;
+    size_t capacity;
+    void *payload;
+    DataType data_type;
+    bool free_after_use;
+} Result;
 /* typedef struct Result { */
 /*     size_t num_tuples; */
 /*     size_t capacity; */
@@ -144,10 +153,10 @@ int binary_search(int* arr, int l_pos, int r_pos, int x);
 bool is_child(BPTNode* parent, BPTNode* child);
 void bfs_traverse_tree(BPTNode* node, bool print);
 void free_tree(BPTNode* node);
-void print_tree(BPTNode* node);
 #if TESTING
 void print_node(BPTNode* node);
 void print_leaf(BPTNode* node);
+void print_tree(BPTNode* node);
 void testing_print();
 #endif
 
@@ -160,7 +169,6 @@ void add_to_results(Result* result, size_t value);
 // memcopy used for unclustered
 void insert_into_results(Result* result, size_t* data, size_t num_items);
 BPTNode* search_for_leaf(BPTNode* bt_node, int value);
-size_t btree_find_insert_position(BPTNode* root, int value);
 Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val);
 Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val);
 

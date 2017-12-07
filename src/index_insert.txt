@@ -1,0 +1,13 @@
+create(db,"awesomebase")
+create(tbl,"grades",awesomebase,6)
+create(col,"project",awesomebase.grades, btree, clustered)
+create(col,"midterm1",awesomebase.grades)
+create(col,"midterm2",awesomebase.grades)
+create(col,"class",awesomebase.grades)
+create(col,"quizzes",awesomebase.grades)
+create(col,"student_id",awesomebase.grades)
+
+relational_insert(awesomebase.grades,107,80,75,95,93,1)
+relational_insert(awesomebase.grades,92,75,82,90,85,2)
+relational_insert(awesomebase.grades,110,95,90,100,95,3)
+relational_insert(awesomebase.grades,88,70,75,85,95,4)

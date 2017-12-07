@@ -145,7 +145,7 @@ bool is_child(BPTNode* parent, BPTNode* child) {
     return false;
 }
 
-#if TESTING
+/* #if TESTING */
 /**
  * @brief Function that prints out the values of a PointerNode
  *  print results like [ val, val, val ]
@@ -303,7 +303,7 @@ void testing_print() {
     free(left);
     free(root);
 }
-#endif
+/* #endif */
 
 
 /// ***************************************************************************

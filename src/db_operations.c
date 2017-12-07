@@ -132,9 +132,10 @@ char* process_insert(InsertOperator insert_op, Status* status) {
         }
         // whether we need to shift the values
         bool shift_values = true;
-        // if we check the max and it is less, we can just append
+        // if we check the max and it is less, we can just append (2 because
+        // we increased the size
         if (index_col->index == NULL ||
-            index_col_values[insert_op.table->table_size - 1] <= insert_val
+            index_col_values[insert_op.table->table_size - 2] <= insert_val
         ) {
             shift_values = false;
         } else if (index_col_values[0] > insert_val) {
@@ -178,6 +179,8 @@ char* process_insert(InsertOperator insert_op, Status* status) {
             // this is the operation to set the value
             insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
         }
+        // PRINTING
+        print_tree(index_col->index);
     }
     status->msg_type = OK_DONE;
     free(insert_op.values);

@@ -3,7 +3,7 @@
 #include <string.h>
 #include "db_operations.h"
 #include "client_context.h"
-#include "b_tree.h"
+#include "db_index.h"
 
 // Min and Max helper functions
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -153,8 +153,13 @@ char* process_insert(InsertOperator insert_op, Status* status) {
             }
         } else {
             // We are just inserting into the new column
-            row_idx = get_sorted_insert_idx((SortedIndex*) index_col->index,
-                                            insert_val);
+            SortedIndex* sorted_index = (SortedIndex*) index_col->index;
+            // make sure the column is correct
+            if (sorted_index->keys != index_col->data) {
+                sorted_index->keys = index_col->data;
+            }
+            row_idx = get_sorted_idx(sorted_index, insert_val);
+            sorted_index->num_items = insert_op->table_length;
         }
 
         // TODO: performace improvement make it so we
@@ -170,12 +175,17 @@ char* process_insert(InsertOperator insert_op, Status* status) {
                     row_idx,
                     shift_values
                 );
+                // PRINTING
+                printf("Printing tree\n");
+                print_tree(index_col->index);
             } else if (col->index_type == SORTED && col != index_col) {
                 // if we are inserting into an unclustered column then
                 // we need to pass the new position and the new index
                 insert_into_sorted((SortedIndex*) index_col->index,
                                     insert_op.values[idx],
                                     row_idx);
+                printf("Printing sort\n");
+                print_sorted_index(index_col->index);
             }
             // if we are inserting make sure the memory move is necessary
             // if it is we want to shift the base values down one position
@@ -184,14 +194,20 @@ char* process_insert(InsertOperator insert_op, Status* status) {
                 memmove(
                     (void*) &insert_op.table->columns[idx].data[row_idx + 1],
                     (void*) &insert_op.table->columns[idx].data[row_idx],
-                    insert_op.table->table_length - row_idx
+                    (insert_op.table->table_length - row_idx - 1) * sizeof(int)
                 );
             }
             // this is the operation to set the value
             insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
         }
-        // PRINTING
-        print_tree(index_col->index);
+    }
+    printf("Printing columns\n");
+    for (size_t i = 0; i < insert_op.table->table_length; i++) {
+        printf("Row %zu:", i);
+        for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
+            printf(" %d", insert_op.table->columns[idx].data[i]);
+        }
+        printf("\n");
     }
     status->msg_type = OK_DONE;
     free(insert_op.values);

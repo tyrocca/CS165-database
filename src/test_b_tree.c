@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include "b_tree.h"
+#include "db_index.h"
 #if TESTING
 #include <time.h>
 #endif

@@ -31,17 +31,17 @@
 #define RESULT_SCALING 16
 
 /// ***************************************************************************
-/// B Plus Tree Types
+/// Database Indexing Types
 /// ***************************************************************************
 
-// TEMP - until integrated
-/* typedef struct Result { */
-/*     size_t num_tuples; */
-/*     size_t capacity; */
-/*     /1* DataType data_type; *1/ */
-/*     void *payload; */
-/*     /1* bool free_after_use; *1/ */
-/* } Result; */
+#define SORTED_NODE_SIZE 3
+typedef struct SortedIndex {
+    int* keys;              // this is a pointer to an array of keys
+    size_t* col_positions;     // this is a pointer to an array of positions
+    size_t num_items;       // the number of items
+    size_t allocated_space; // this is the amount of allocated space for a col
+    bool has_positions;     // this bool tells us if we have positions
+} SortedIndex;
 
 // Define the "BPTNode"
 struct BPTNode;

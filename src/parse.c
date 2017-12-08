@@ -189,7 +189,12 @@ void parse_create_index(char* create_arguments, Status* status) {
 
     // now setup the index stuff
     char* index_string = next_token(create_arguments_index, &status->msg_type);
-    column->index_type = strncmp(index_string, "btree", 5) == 0 ? BTREE : SORTED;
+    if (strncmp(index_string, "btree", 5) == 0) {
+        column->index_type = BTREE;
+    } else {
+        column->index_type = SORTED;
+        column->index = create_clustered_sorted_index(column->data);
+    }
     assert(create_arguments_index != NULL);
 
     // now handle the clustering things

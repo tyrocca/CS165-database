@@ -52,12 +52,8 @@ typedef struct Result {
 /*     /1* bool free_after_use; *1/ */
 /* } Result; */
 
-#define DEFAULT_COLUMN_SIZE 256
+#define DEFAULT_COLUMN_SIZE 4096
 #define SORTED_NODE_SIZE 3
-/* typedef struct SortedNode { */
-
-
-/* } SortedNode; */
 typedef struct SortedIndex {
     int* keys;              // this is a pointer to an array of keys
     size_t* col_positions;     // this is a pointer to an array of positions

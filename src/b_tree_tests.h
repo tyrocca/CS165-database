@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 /* #include "cs165_api.h" */
-#define TESTING 1
+#define TESTING 0
 
 /// ***************************************************************************
 /// B Tree Initialization variables

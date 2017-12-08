@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
-#include "b_tree.h"
+/* #include "b_tree.h" */
+#include "b_tree_tests.h"
 
 // function that tests splitting the leaf
 void test_split_leaf() {

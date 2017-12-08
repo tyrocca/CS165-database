@@ -54,6 +54,20 @@ int make_column_fname(char* db_name, char* table_name, char* col_name, char* fil
     return sprintf(fileoutname, "./database/%s.%s.%s.bin", db_name, table_name, col_name);
 }
 
+/**
+ * @brief This function makes the binary file name for the column
+ *
+ * @param db_name - this is the db name (char*)
+ * @param table_name - this is the table name (char*)
+ * @param col_name - this is the col name
+ * @param fileoutname - this is where it all gets returned
+ *
+ * @return
+ */
+int make_index_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
+    return sprintf(fileoutname, "./database/%s.%s.%s.index.bin", db_name, table_name, col_name);
+}
+
 ///////////////////////
 // LOADING FUNCTIONS //
 ///////////////////////

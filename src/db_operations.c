@@ -113,6 +113,10 @@ char* process_insert(InsertOperator insert_op, Status* status) {
                                                         insert_op.values[idx],
                                                         row_idx,
                                                         false);
+            } else if (col->index_type == SORTED) {
+                insert_into_sorted((SortedIndex*) col->index,
+                                   insert_op.values[idx],
+                                   row_idx)
             }
             // insert into the base data
             insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
@@ -123,7 +127,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
         // new max index
         Column* index_col = insert_op.table->primary_index;
         int insert_val = insert_op.values[insert_op.table->primary_col_pos];
-        int* index_col_values = (int*) index_col->data;
+
         // we should increase the size of the table - this function will do that
         // we use the next index as a place holder
         size_t row_idx = next_table_idx(insert_op.table, status);
@@ -131,40 +135,47 @@ char* process_insert(InsertOperator insert_op, Status* status) {
             return NULL;
         }
         // whether we need to shift the values
-        bool shift_values = true;
+        bool shift_values = false;
         // if we check the max and it is less, we can just append (2 because
         // we increased the size
-        if (index_col->index == NULL ||
-            index_col_values[insert_op.table->table_size - 2] <= insert_val
-        ) {
-            shift_values = false;
-        } else if (index_col_values[0] > insert_val) {
-            shift_values = true;
-            row_idx = 0;
-        } else {
-            if (index_col->index_type == BTREE) {
+        if (index_col->index_type == BTREE) {
+            if (index_col->index == NULL ||
+                index_col->data[insert_op.table->table_size - 2] <= insert_val
+            ) {
+                shift_values = false;
+            } else if (index_col->data[0] > insert_val) {
+                shift_values = true;
+                row_idx = 0;
+            } else {
                 row_idx = btree_find_insert_position((BPTNode*) index_col->index,
                                                      insert_val);
-            } else {
-                // TODO
-                assert("NOT_IMPLEMENTED" == NULL);
+                shift_values = row_idx + 1 < insert_op.table->table_length;
             }
-            shift_values = row_idx + 1 < insert_op.table->table_length;
+        } else {
+            // We are just inserting into the new column
+            row_idx = get_sorted_insert_idx((SortedIndex*) index_col->index,
+                                            insert_val);
         }
 
         // TODO: performace improvement make it so we
         // do the insertion in threads!
         for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
             Column* col = &insert_op.table->columns[idx];
-            // if we have an unclusted index on an unclustered column
-            // we are pretty happy because that means we don't need to
-            // shift the values
             if (col->index_type == BTREE) {
+                // if we have a b_tree we need to insert into the column
                 BPTNode* bt_root = ((BPTNode*) col->index);
-                col->index = (void*) btree_insert_value(bt_root,
-                                                        insert_op.values[idx],
-                                                        row_idx,
-                                                        shift_values);
+                col->index = (void*) btree_insert_value(
+                    bt_root,
+                    insert_op.values[idx],
+                    row_idx,
+                    shift_values
+                );
+            } else if (col->index_type == SORTED && col != index_col) {
+                // if we are inserting into an unclustered column then
+                // we need to pass the new position and the new index
+                insert_into_sorted((SortedIndex*) index_col->index,
+                                    insert_op.values[idx],
+                                    row_idx);
             }
             // if we are inserting make sure the memory move is necessary
             // if it is we want to shift the base values down one position

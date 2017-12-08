@@ -11,7 +11,271 @@
 
 /// ***************************************************************************
 /// Sorted Index Functions
+/// ***************************************************************************
 
+/**
+ * @brief Function that creates a sorted index
+ *
+ * @return sorted index pointer
+ */
+SortedIndex* create_sorted_index() {
+    SortedIndex* sorted_index = malloc(sizeof(SortedIndex));
+    // initialize the index
+    sorted_index->col_positions = NULL;
+    sorted_index->num_items = 0;
+    return sorted_index;
+}
+
+/**
+ * @brief Function that creates and returns the unclustered sorted index
+ *
+ * @return Sorted index pointer
+ */
+SortedIndex* create_unclustered_sorted_index() {
+    SortedIndex* sorted_index = create_sorted_index();
+    sorted_index->has_positions = true;
+    sorted_index->allocated_space = DEFAULT_COLUMN_SIZE;
+    sorted_index->keys = malloc(sizeof(int) * sorted_index->allocated_space);
+    sorted_index->col_positions = malloc(
+            sizeof(size_t) * sorted_index->allocated_space
+    );
+    return sorted_index;
+}
+
+SortedIndex* create_clustered_sorted_index(int* data) {
+    SortedIndex* sorted_index = create_sorted_index();
+    sorted_index->has_positions = true;
+    sorted_index->keys = data;
+    return sorted_index;
+}
+
+/**
+ * @brief Function that increases the size of the sorted index
+ *
+ * @param sorted_index - the index to increase
+ */
+void increase_sorted_index(SortedIndex* sorted_index) {
+    if (sorted_index->num_items == sorted_index->allocated_space) {
+        sorted_index->allocated_space *= 2;
+        sorted_index->keys = realloc(
+            sorted_index->keys,
+            sizeof(int) * sorted_index->allocated_space
+        );
+        // realloc positions if necessary
+        if (sorted_index->has_positions) {
+            sorted_index->keys = realloc(
+                sorted_index->keys,
+                sizeof(size_t) * sorted_index->allocated_space
+            );
+        }
+    }
+}
+
+/// **************************************************************************
+/// Sorted index searching functions
+/// **************************************************************************
+
+/**
+ * @brief This function takes in a value and returns the closest page
+ *
+ * @param value
+ *
+ * @return rounded down page
+ */
+size_t nearest_value(size_t value) {
+    return (value / SORTED_NODE_SIZE) * SORTED_NODE_SIZE;
+}
+
+// should never hit 0
+size_t sorted_node_binary_search(
+    int* arr,
+    size_t l_pos,
+    size_t r_pos,
+    int value,
+    bool* found
+) {
+   if (r_pos >= l_pos) {
+        size_t mid = l_pos + (r_pos - l_pos) / 2;
+
+        // If the element is present at the middle itself
+        if (arr[mid] == value) {
+            // make sure we get the lowest one
+            while (arr[mid - 1] == value) {
+                mid--;
+            }
+            *found = true;
+            return mid;
+        } else if (arr[mid - 1] < value && arr[mid] > value) {
+            *found = true;
+            return mid;
+        }
+
+        // If element is smaller than mid, then it can only be present
+        // in left subarray
+        if (arr[mid] > value) {
+            return sorted_node_binary_search(arr, l_pos, mid - 1, value, found);
+        }
+        // Else the element can only be present in right subarray
+        return sorted_node_binary_search(arr, mid + 1, r_pos, value, found);
+   }
+   *found = false;
+   // We reach here when element is not present in array
+   return 0;
+}
+
+// TODO: Make this cache concious
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
+size_t search_sorted(int* arr, size_t l_pos, size_t r_pos, int insert_val, bool* found) {
+    if (r_pos - l_pos < SORTED_NODE_SIZE) {
+        return sorted_node_binary_search(arr, l_pos, r_pos, insert_val, found);
+    } else if (r_pos >= l_pos) {
+        size_t mid = l_pos + (r_pos - l_pos) / 2;
+        // take the low bound
+        size_t sub_l = nearest_value(mid);
+        // take the high bound
+        size_t sub_r = MIN(r_pos, sub_l + SORTED_NODE_SIZE - 1);
+
+        printf("Searching from index [%zu, %zu]", sub_l, sub_r);
+        size_t result = sorted_node_binary_search(arr, sub_l, sub_r,
+                                                  insert_val, found);
+        // if we find the result, move on
+        if (*found) {
+            return result;
+        }
+
+        // If element is smaller than mid, then it can only be present
+        // in left subarray
+        if (arr[sub_l] > insert_val) {
+            return search_sorted(arr, l_pos, sub_l - 1, insert_val, found);
+        }
+        // Else the element can only be present in right subarray
+        return search_sorted(arr, sub_r + 1, r_pos, insert_val, found);
+    }
+    // We reach here when element is not present in array
+    *found = false;
+    return 0;
+}
+
+/// ***************************************************************************
+/// Insertion functions
+/// ***************************************************************************
+
+/**
+ * @brief This function returns the index where the value should be inserted
+ *
+ * @param sorted_index
+ * @param value
+ *
+ * @return
+ */
+size_t get_sorted_insert_idx(SortedIndex* sorted_index, int value) {
+    size_t insert_idx;
+    if (sorted_index->num_items == 0 || sorted_index->keys[0] >= value) {
+        // then we don't want to change tne insert index
+        insert_idx = 0;
+    } else if (sorted_index->keys[sorted_index->num_items - 1] <= value) {
+        insert_idx = sorted_index->num_items;
+    } else {
+        printf("Using search sorted\n");
+        // otherwise search the index
+        bool found_match = false;
+        insert_idx = search_sorted(sorted_index->keys,
+                                   0,
+                                   sorted_index->num_items - 1,
+                                   value,
+                                   &found_match);
+    }
+    sorted_index->num_items++;
+    return insert_idx;
+}
+
+size_t insert_into_sorted(SortedIndex* sorted_index, int value, size_t position) {
+    size_t idx = get_sorted_insert_idx(sorted_index, value);
+    printf("Will insert at index: %zu\n", idx);
+
+    // if our column is unclustered then we don't want to increase the index
+    if (sorted_index->has_positions) {
+        // we need to make space - we don't need to worry about this is
+        // we have a clustered column
+        increase_sorted_index(sorted_index);
+        // we need to move and we need to update positions
+        if (idx + 1 < sorted_index->num_items) {
+            for (size_t i = 0; i < sorted_index->num_items - 1; i++) {
+                if (sorted_index->col_positions[i] >= position) {
+                    sorted_index->col_positions[i]++;
+                }
+            }
+            memmove((void*) &sorted_index->keys[idx + 1],
+                    (void*) &sorted_index->keys[idx],
+                    (sorted_index->num_items - idx - 1) * sizeof(int));
+            memmove((void*) &sorted_index->col_positions[idx + 1],
+                    (void*) &sorted_index->col_positions[idx],
+                    (sorted_index->num_items - idx - 1) * sizeof(size_t));
+        }
+        sorted_index->col_positions[idx] = position;
+        sorted_index->keys[idx] = value;
+    }
+    // TODO: include?
+    return idx;
+}
+
+void print_sorted_index(SortedIndex* sorted_index) {
+    for (size_t i = 0; i < sorted_index->num_items; i++) {
+        printf("%zu value: ", i);
+        if (sorted_index->has_positions) {
+            printf(
+                "%d, %zu\n",
+                sorted_index->keys[i],
+                sorted_index->col_positions[i]
+            );
+        } else {
+            printf("%d\n", sorted_index->keys[i]);
+        }
+    }
+}
+
+void test_sorted_index() {
+    SortedIndex* sorted_index = create_unclustered_sorted_index();
+    srand(time(NULL));
+    size_t pos = 0;
+    /* for (size_t i = 0; i < 20; i++) { */
+    /*     if (i < 10 || i > 13) { */
+    /*         insert_into_sorted(sorted_index, i, pos++); */
+    /*     } */
+    /* } */
+    /* print_sorted_index(sorted_index); */
+    /* insert_into_sorted(sorted_index, 10, 300); */
+    /* print_sorted_index(sorted_index); */
+    /* for (size_t i = 0; i < 20; i++) { */
+    /*     int val = rand() % 300; */
+    /*     printf("Inserting %d\n", val); */
+    /*     insert_into_sorted(sorted_index, val, pos++); */
+    /*     printf("This is the index\n"); */
+    /*     print_sorted_index(sorted_index); */
+    /* } */
+    insert_into_sorted(sorted_index, 3, pos++);
+    printf("This is the index\n");
+    print_sorted_index(sorted_index);
+    insert_into_sorted(sorted_index, 4, pos++);
+    printf("This is the index\n");
+    print_sorted_index(sorted_index);
+    insert_into_sorted(sorted_index, 9, pos++);
+    printf("This is the index\n");
+    print_sorted_index(sorted_index);
+    printf("This is the index\n");
+    insert_into_sorted(sorted_index, 5, 0);
+    print_sorted_index(sorted_index);
+}
+/* SortedIndex* sorted_index_insert( */
+/*     SortedIndex* sorted_index, */
+/*     int value, */
+/*     size_t position, */
+/*     bool update_positions */
+/* ) { */
+/*     /1* if *1/ */
+/* } */
 
 /// ***************************************************************************
 /// Stack functions
@@ -112,28 +376,28 @@ BPTNode* create_leaf() {
  *
  * @return index of the item
  */
-int binary_search(int* arr, int l_pos, int r_pos, int x) {
-   if (r_pos >= l_pos) {
-        int mid = l_pos + (r_pos - l_pos) / 2;
+/* int binary_search(int* arr, int l_pos, int r_pos, int x) { */
+/*    if (r_pos >= l_pos) { */
+/*         int mid = l_pos + (r_pos - l_pos) / 2; */
 
-        // If the element is present at the middle itself
-        if (arr[mid] == x) {
+/*         // If the element is present at the middle itself */
+/*         if (arr[mid] == x) { */
 
-            return mid;
-        }
+/*             return mid; */
+/*         } */
 
-        // If element is smaller than mid, then it can only be present
-        // in left subarray
-        if (arr[mid] > x) {
-            return binary_search(arr, l_pos, mid - 1, x);
-        }
+/*         // If element is smaller than mid, then it can only be present */
+/*         // in left subarray */
+/*         if (arr[mid] > x) { */
+/*             return binary_search(arr, l_pos, mid - 1, x); */
+/*         } */
 
-        // Else the element can only be present in right subarray
-        return binary_search(arr, mid + 1, r_pos, x);
-   }
-   // We reach here when element is not present in array
-   return -1;
-}
+/*         // Else the element can only be present in right subarray */
+/*         return binary_search(arr, mid + 1, r_pos, x); */
+/*    } */
+/*    // We reach here when element is not present in array */
+/*    return -1; */
+/* } */
 
 
 /**
@@ -1196,7 +1460,8 @@ void testing_search() {
 #if TESTING
 int main(void) {
     printf("Testing leaf insert\n");
-    testing_search();
+    /* testing_search(); */
+    test_sorted_index();
     printf("SIZE is %zu\n", sizeof(BPTNode));
     return 0;
 }

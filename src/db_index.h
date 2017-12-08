@@ -53,11 +53,17 @@ typedef struct Result {
 /* } Result; */
 
 #define DEFAULT_COLUMN_SIZE 256
+#define SORTED_NODE_SIZE 3
+/* typedef struct SortedNode { */
+
+
+/* } SortedNode; */
 typedef struct SortedIndex {
     int* keys;              // this is a pointer to an array of keys
-    int* col_positions;     // this is a pointer to an array of positions
-    size_t num_items;       // this is a pointer to the number of items
+    size_t* col_positions;     // this is a pointer to an array of positions
+    size_t num_items;       // the number of items
     size_t allocated_space; // this is the amount of allocated space for a col
+    bool has_positions;     // this bool tells us if we have positions
 } SortedIndex;
 
 /// ***************************************************************************

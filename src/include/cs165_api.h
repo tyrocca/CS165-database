@@ -179,6 +179,7 @@ typedef struct Result {
     void *payload;
     DataType data_type;
     bool free_after_use;
+    bool is_contiguous;
 } Result;
 
 /*

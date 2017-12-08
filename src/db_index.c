@@ -111,9 +111,9 @@ size_t sorted_node_binary_search(
         // should never hit 0
         if (arr[mid] == value) {
             // make sure we get the lowest one
-            while (arr[mid - 1] == value) {
-                mid--;
-            }
+            /* while (arr[mid - 1] == value) { */
+            /*     mid--; */
+            /* } */
             *found = true;
             return mid;
         } else if (arr[mid] > value) {
@@ -161,7 +161,6 @@ size_t search_sorted(int* arr, size_t l_pos, size_t r_pos, int insert_val, bool*
         // take the high bound
         size_t sub_r = MIN(r_pos, sub_l + SORTED_NODE_SIZE - 1);
 
-        printf("Searching from index [%zu, %zu]", sub_l, sub_r);
         size_t result = sorted_node_binary_search(arr, sub_l, sub_r,
                                                   insert_val, found);
         // if we find the result, move on
@@ -207,20 +206,71 @@ size_t get_sorted_idx(SortedIndex* sorted_index, int value) {
                                    value,
                                    &found_match);
     }
-    printf("Will insert at index: %zu\n", insert_idx);
+    /* printf("Will insert at index: %zu\n", insert_idx); */
     return insert_idx;
 }
 
-size_t get_range_sorted(SortedIndex* sorted_index, int low, int high) {
+/**
+ * @brief Add ability to sort?
+ *
+ * @param sorted_index
+ * @param low
+ * @param high
+ *
+ * @return values
+ */
+Result* get_range_sorted(SortedIndex* sorted_index, int low, int high) {
+
+    printf("\n** Query %d to %d **\n", low, high);
     size_t low_bound = get_sorted_idx(sorted_index, low);
     size_t high_bound = get_sorted_idx(sorted_index, high);
-    /* size_t add_one = 0; */
-    while (high_bound + 1 < sorted_index->num_items &&
-            sorted_index->keys[high_bound + 1] < high) {
-        high_bound++;
+
+    // make sure the low bound is the lowest qualifying value
+    while (low_bound > 0 && sorted_index->keys[low_bound - 1] >= low) {
+        low_bound--;
     }
-    // then we can just memcopy into the array
-    printf("low bound %zu, high bound %zu\n", low_bound, high_bound);
+
+    // make sure the high bound doesn't include any unqualified values
+    while (high_bound >= low_bound && sorted_index->keys[high_bound - 1] >= high) {
+        high_bound--;
+    }
+
+    // then we can just memcopy into the array!
+    printf(
+        "num results: %zu, low bound %zu, high bound %zu\n",
+        high_bound - low_bound,
+        low_bound,
+        high_bound
+    );
+
+    // start setting the results
+    Result* result = malloc(sizeof(Result));
+    result->data_type = INDEX;
+    result->num_tuples = result->capacity = high_bound - low_bound;
+    if (low_bound == high_bound) {
+        result->num_tuples = 0;
+        result->capacity = 0;
+        printf("No results\n");
+        return result;
+    }
+
+    // allocate space for the result
+    result->payload = malloc(sizeof(size_t) * result->capacity);
+    if (sorted_index->has_positions) {
+        memcpy(result->payload,
+               (void*) &sorted_index->col_positions[low_bound],
+               (high_bound - low_bound) * sizeof(size_t));
+    } else {
+        size_t i = 0;
+        while (low_bound < high_bound) {
+            ((size_t*) result->payload)[i++] = low_bound++;
+        }
+    }
+
+    for (size_t i = 0; i < result->num_tuples; i++) {
+        printf("Selection %zu is %zu\n", i, ((size_t*) result->payload)[i]);
+    }
+    return result;
 }
 
 /// ***************************************************************************
@@ -278,27 +328,61 @@ void print_sorted_index(SortedIndex* sorted_index) {
 void test_sorted_index() {
     SortedIndex* sorted_index = create_unclustered_sorted_index();
     srand(time(NULL));
-    size_t pos = 0;
-    for (size_t i = 0; i < 20; i++) {
-        if (i < 10 || i > 13) {
-            insert_into_sorted(sorted_index, i, pos++);
-        }
-    }
-    print_sorted_index(sorted_index);
-    /* insert_into_sorted(sorted_index, 1, 1); */
-    /* insert_into_sorted(sorted_index, 5, 0); */
-    /* insert_into_sorted(sorted_index, 2, 3); */
-
+    /* size_t pos = 0; */
+    /* for (size_t i = 0; i < 20; i++) { */
+    /*     if (i < 10 || i > 13) { */
+    /*         insert_into_sorted(sorted_index, i, pos++); */
+    /*     } */
+    /* } */
     /* print_sorted_index(sorted_index); */
-    for (size_t i = 0; i < 20; i++) {
-        int val = rand() % 400;
-        printf("Inserting %d\n", val);
-        insert_into_sorted(sorted_index, val, pos++);
-        printf("This is the index\n");
-        print_sorted_index(sorted_index);
-    }
+    insert_into_sorted(sorted_index, 1, 1);
+    insert_into_sorted(sorted_index, 5, 0);
+    insert_into_sorted(sorted_index, 2, 2);
+    insert_into_sorted(sorted_index, 8, 2);
+    insert_into_sorted(sorted_index, 8, 3);
+    insert_into_sorted(sorted_index, 6, 4);
+    insert_into_sorted(sorted_index, 1, 3);
+    insert_into_sorted(sorted_index, 5, 6);
+    sorted_index->has_positions = false;
 
-    get_range_sorted(sorted_index, 0, 4);
+    // BUGS
+    // - catching values that shouldn't be in there
+    print_sorted_index(sorted_index);
+    get_range_sorted(sorted_index, 6, 8);
+    printf("Should find 1 value\n");
+
+    get_range_sorted(sorted_index, 5, 6);
+    printf("Should find 2 value\n");
+
+    get_range_sorted(sorted_index, 8, 10);
+    printf("Should find 2 value\n");
+
+    get_range_sorted(sorted_index, 10, 12);
+    printf("Should find 0 values\n");
+
+    get_range_sorted(sorted_index, 2, 5);
+    printf("Should find 1 values\n");
+
+    get_range_sorted(sorted_index, 3, 5);
+    printf("Should find 0 values\n");
+
+    get_range_sorted(sorted_index, 1, 9);
+    printf("Should find 8 values\n");
+
+    get_range_sorted(sorted_index, 1, 7);
+    printf("Should find 6 values\n");
+
+
+    /* /1* print_sorted_index(sorted_index); *1/ */
+    /* for (size_t i = 0; i < 20; i++) { */
+    /*     int val = rand() % 400; */
+    /*     printf("Inserting %d\n", val); */
+    /*     insert_into_sorted(sorted_index, val, pos++); */
+    /*     printf("This is the index\n"); */
+    /*     print_sorted_index(sorted_index); */
+    /* } */
+
+    /* get_range_sorted(sorted_index, 0, 4); */
     /* insert_into_sorted(sorted_index, 3, pos++); */
     /* printf("This is the index\n"); */
     /* print_sorted_index(sorted_index); */

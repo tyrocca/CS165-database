@@ -4,6 +4,10 @@
 #include "db_operations.h"
 #include "client_context.h"
 #include "db_index.h"
+// TODO remove me
+#include <stdio.h>
+
+#define DEFAULT_COLUMN_SIZE 4096
 
 // Min and Max helper functions
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -116,7 +120,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
             } else if (col->index_type == SORTED) {
                 insert_into_sorted((SortedIndex*) col->index,
                                    insert_op.values[idx],
-                                   row_idx)
+                                   row_idx);
             }
             // insert into the base data
             insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
@@ -159,7 +163,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
                 sorted_index->keys = index_col->data;
             }
             row_idx = get_sorted_idx(sorted_index, insert_val);
-            sorted_index->num_items = insert_op->table_length;
+            sorted_index->num_items = insert_op.table->table_length;
         }
 
         // TODO: performace improvement make it so we

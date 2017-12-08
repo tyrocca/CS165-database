@@ -5,10 +5,12 @@
 #include <string.h>
 #include <assert.h>
 #include "db_index.h"
+
 #if TESTING
 #include <time.h>
 #endif
 
+#define DEFAULT_COLUMN_SIZE 4096
 /// ***************************************************************************
 /// Sorted Index Functions
 /// ***************************************************************************
@@ -110,10 +112,6 @@ size_t sorted_node_binary_search(
         // If the element is present at the middle itself
         // should never hit 0
         if (arr[mid] == value) {
-            // make sure we get the lowest one
-            /* while (arr[mid - 1] == value) { */
-            /*     mid--; */
-            /* } */
             *found = true;
             return mid;
         } else if (arr[mid] > value) {
@@ -459,7 +457,6 @@ void free_stack(BPTNodeStack* stack) {
  * @return allocated node
  */
 BPTNode* allocate_node(bool leaf) {
-    /* BPTNode* new_node = malloc(sizeof(BPTNode)); */
     BPTNode* new_node = calloc(1, sizeof(BPTNode));
     new_node->num_elements = 0;
     new_node->is_leaf = leaf;
@@ -514,10 +511,10 @@ bool is_child(BPTNode* parent, BPTNode* child) {
 size_t leafcount = 0;
 unsigned current_level = 0;
 
-inline void print_node(BPTNode* node) {
+void print_node(BPTNode* node) {
     printf("[ ");
     if (node->is_leaf == false){
-        printf("(LEVEL %u) ",node->bpt_meta.bpt_ptrs.level);
+        printf("(LEVEL %u) ", node->bpt_meta.bpt_ptrs.level);
     } else {
         printf("\n(LEAF %zu) ", leafcount++);
     }
@@ -545,7 +542,7 @@ inline void print_node(BPTNode* node) {
  *
  * @param node - node to print
  */
-inline void print_leaf(BPTNode* node) {
+void print_leaf(BPTNode* node) {
     printf("[ ");
     for (size_t i = 0; i < node->num_elements; i++) {
         printf(
@@ -564,7 +561,7 @@ inline void print_leaf(BPTNode* node) {
  *
  * @param node - node to print
  */
-inline void bfs_traverse_tree(BPTNode* node, bool print) {
+void bfs_traverse_tree(BPTNode* node, bool print) {
     BPTNode** all_nodes = malloc(sizeof(BPTNode*) * 2);
     size_t num_nodes = 1;
     size_t node_idx = 0;
@@ -1545,11 +1542,11 @@ void testing_search() {
 
 
 #if TESTING
-int main(void) {
-    printf("Testing leaf insert\n");
-    /* testing_search(); */
-    test_sorted_index();
-    printf("SIZE is %zu\n", sizeof(BPTNode));
-    return 0;
-}
+/* int main(void) { */
+/*     printf("Testing leaf insert\n"); */
+/*     /1* testing_search(); *1/ */
+/*     test_sorted_index(); */
+/*     printf("SIZE is %zu\n", sizeof(BPTNode)); */
+/*     return 0; */
+/* } */
 #endif

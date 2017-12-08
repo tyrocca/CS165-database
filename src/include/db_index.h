@@ -3,9 +3,9 @@
 // Libraries
 #include <stdlib.h>
 #include <stdbool.h>
-
 #include "cs165_api.h"
-#define TESTING 0
+
+#define TESTING 1
 
 /// ***************************************************************************
 /// B Tree Initialization variables
@@ -115,99 +115,46 @@ typedef struct SplitNode {
 } SplitNode;
 
 
-/* void value_to_node(BPTNodeVal* return_obj, BPTNode* bt_node, size_t idx) { */
-/*     return_obj->parent = bt_node; */
-/*     return_obj->point_value = return_obj->parent->node_vals[idx]; */
-/*     if (return_obj->parent->is_leaf) { */
-/*         return_obj->left_branch = return_obj->parent->bpt_meta.bpt_ptrs.children[idx]; */
-/*         return_obj->right_branch = return_obj->parent->bpt_meta.bpt_ptrs.children[idx + 1]; */
-/*     } else { */
-/*         return_obj->left_branch = return_obj->right_branch = NULL; */
-/*         return_obj->point_value = return_obj->parent->bpt_meta.bpt_leaf.col_pos[idx]; */
-/*     } */
-/* } */
-
-// ****************************************************************************
-// NODE Functions
-// ****************************************************************************
-
-// allocation functions
-BPTNode* allocate_node(bool leaf);
-BPTNode* create_node();
-BPTNode* create_leaf();
-
-
 // ****************************************************************************
 // Helper Functions - used for debugging / general things
 // ****************************************************************************
-int binary_search(int* arr, int l_pos, int r_pos, int x);
-bool is_child(BPTNode* parent, BPTNode* child);
-void bfs_traverse_tree(BPTNode* node, bool print);
+
+
 void free_tree(BPTNode* node);
 void print_tree(BPTNode* node);
-#if TESTING
-void print_node(BPTNode* node);
-void print_leaf(BPTNode* node);
-void testing_print();
-#endif
+void print_sorted_index(SortedIndex* sorted_index);
 
 
 /// ***************************************************************************
-/// Searching Functions
+/// Sorted Functions
 /// ***************************************************************************
-void increase_result_array(Result *result);
-void add_to_results(Result* result, size_t value);
-// memcopy used for unclustered
-void insert_into_results(Result* result, size_t* data, size_t num_items);
-BPTNode* search_for_leaf(BPTNode* bt_node, int value);
+
+// Creation functions
+SortedIndex* create_unclustered_sorted_index();
+SortedIndex* create_clustered_sorted_index(int* data);
+
+// Search function
+size_t get_sorted_idx(SortedIndex* sorted_index, int value);
+Result* get_range_sorted(SortedIndex* sorted_index, int low, int high);
+
+// Insertion (for unclustered)
+void insert_into_sorted(SortedIndex* sorted_index, int value, size_t position);
+
+
+/// **************************************************************************
+/// B Plus Tree Functions
+/// **************************************************************************
+
 size_t btree_find_insert_position(BPTNode* root, int value);
 Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val);
 Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val);
 
-/// **************************************************************************
-/// B Plus Tree Insertion Functions
-/// **************************************************************************
-
-// Leaf functions
-void insert_into_leaf(BPTNode* bt_node, int value, size_t position);
-#if TESTING
-void test_leaf_insert();
-#endif
-
-void split_leaf(BPTNode* bt_node, int value, size_t pos, SplitNode* split_node);
-#if TESTING
-void test_split_leaf();
-#endif
-
-SplitNode* add_to_leaf(BPTNode* bt_node, int value, size_t position);
-
-
-BPTNodeStack* find_leaf(BPTNode* bt_node, int value);
-void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node);
-
-// Body functions
-void insert_into_tree_body(BPTNode* bt_node, SplitNode* split_node);
-void split_body_node(
-    BPTNode* bt_node,
-    SplitNode* insert_node,
-    SplitNode* result_node
-);
-
-BPTNode* rebalanced_insert(
-    BPTNode* bt_node,
-    SplitNode* split_node,
-    BPTNodeStack* access_stack
-);
-
-// the overall insertion function
+// the overall insertion function for b_tree
 BPTNode* btree_insert_value(
     BPTNode* bt_node,
     int value,
     size_t position,
     bool update_positions
 );
-
-void testing_kick_up();
-
 
 #endif

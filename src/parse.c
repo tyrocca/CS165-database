@@ -19,6 +19,7 @@
 #include "parse.h"
 #include "utils.h"
 #include "client_context.h"
+#include "db_index.h"
 #define DEFAULT_COL_ALLOC 8
 #define DEFAULT_SHARED_ALLOC 16
 

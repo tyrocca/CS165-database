@@ -181,10 +181,47 @@ void* lookup_struct(NameLookup* lookup, LookupType struct_type) {
  * Below are a list of the parse functions for creating columns
  */
 
+// create(idx,<col_name>,[btree, sorted], [clustered, unclustered])
+void parse_create_index(char* create_arguments, Status* status) {
+    char** create_arguments_index = &create_arguments;
+    char* column_name = next_token(create_arguments_index, &status->msg_type);
+    Column* column = (Column*) get_col_from_string(column_name, status);
+
+    // now setup the index stuff
+    char* index_string = next_token(create_arguments_index, &status->msg_type);
+    column->index_type = strncmp(index_string, "btree", 5) == 0 ? BTREE : SORTED;
+    assert(create_arguments_index != NULL);
+
+    // now handle the clustering things
+    char* cluster_param = next_token(create_arguments_index, &status->msg_type);
+
+    // not enough arguments
+    if (status->msg_type == INCORRECT_FORMAT) {
+        status->code = ERROR;
+        status->msg = "Wrong # of args for create_index";
+        return;
+    }
+
+    // otherwise set the clustering
+    if (strncmp(cluster_param, "clustered", 9) == 0) {
+        column->clustered = true;
+        column->table->primary_index = column;
+        // set primary columns index
+        for (size_t i = 0; i < column->table->col_count; i++) {
+            if (&column->table->columns[i] == column) {
+                column->table->primary_col_pos = i;
+                break;
+            }
+        }
+    }
+
+}
+
 /**
  * @brief this function takes in the argument string for the creation
  * of columns and will create that new column. it will return a status
  * create(col,"project",awesomebase.grades)
+// create(col,"<colname>", full_table_name, [btree, sorted], [clustered, unclustered])
  *
  * TODO: Make it so that this parses sorted status
  *
@@ -200,7 +237,6 @@ void parse_create_col(char* create_arguments, Status* status) {
     char* db_name = next_db_field(create_arguments_index, &status->msg_type);
     char* table_name = next_token(create_arguments_index, &status->msg_type);
 
-    // TODO - enable sorting
     bool clustered = false;
     IndexType index_type = NONE;
     // this means there is more to come
@@ -375,6 +411,8 @@ DbOperator* parse_create(char* create_arguments, Status* status) {
             parse_create_tbl(tokenizer_copy, status);
         } else if (strcmp(token, "col") == 0) {
             parse_create_col(tokenizer_copy, status);
+        } else if (strcmp(token, "idx") == 0) {
+            parse_create_index(tokenizer_copy, status);
         } else {
             status->msg_type = UNKNOWN_COMMAND;
         }

@@ -45,7 +45,9 @@ Column* create_column(
             new_col->index_type = index_type;
             // if we have a clustered column we need that column to be
             // specified as the primary index
+            // TODO: indexing things
             new_col->clustered = clustered;
+            new_col->table = table;
             if (clustered) {
                 table->primary_index = new_col;
                 table->primary_col_pos = idx;

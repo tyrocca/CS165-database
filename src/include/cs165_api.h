@@ -82,13 +82,14 @@ typedef union DataPtr {
 /* } DataType; */
 
 struct Comparator;
+struct Table;
 //struct ColumnIndex;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME];
     size_t* size_ptr;           // The size pointer
     int* data;                  // TODO - make this datatype
-    /* Table* table;               // The column's table */
+    struct Table* table;               // The column's table
     void* index;                // Pointer to the index
     IndexType index_type;       // The type of index
     bool clustered;             // Bool to indicate if the column is clustered

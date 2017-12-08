@@ -4,15 +4,23 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include "b_tree.h"
+#include "db_index.h"
 #if TESTING
 #include <time.h>
 #endif
 
+/// ***************************************************************************
+/// Sorted Index Functions
+
+
+/// ***************************************************************************
+/// Stack functions
+/// ***************************************************************************
+
 // function to create a stack of given capacity. It initializes size of
 // stack as 0
 #define DEFAULT_DEPTH 32
-BPTNodeStack* createStack(unsigned capacity) {
+BPTNodeStack* create_stack(unsigned capacity) {
     BPTNodeStack* stack = malloc(sizeof(BPTNodeStack));
     stack->capacity = capacity;
     stack->top = -1;
@@ -21,18 +29,18 @@ BPTNodeStack* createStack(unsigned capacity) {
 }
 
 // BPTNodeStack is full when top is equal to the last index
-int isFull(BPTNodeStack* stack) {
+int stack_is_full(BPTNodeStack* stack) {
     return ((unsigned) stack->top) == stack->capacity - 1;
 }
 
 // BPTNodeStack is empty when top is equal to -1
-int isEmpty(BPTNodeStack* stack) {
+int stack_is_empty(BPTNodeStack* stack) {
     return stack->top == -1;
 }
 
 // Function to add an item to stack.  It increases top by 1
-void push(BPTNodeStack* stack, BPTNode* item) {
-    if (isFull(stack)) {
+void stack_push(BPTNodeStack* stack, BPTNode* item) {
+    if (stack_is_full(stack)) {
         stack->capacity *= 2;
         stack->array = realloc(stack->array,
                                stack->capacity * sizeof(BPTNode*));
@@ -42,8 +50,8 @@ void push(BPTNodeStack* stack, BPTNode* item) {
 }
 
 // Function to remove an item from stack.  It decreases top by 1
-BPTNode* pop(BPTNodeStack* stack) {
-    if (isEmpty(stack)) {
+BPTNode* stack_pop(BPTNodeStack* stack) {
+    if (stack_is_empty(stack)) {
         return NULL;
     }
     return stack->array[stack->top--];
@@ -155,7 +163,7 @@ bool is_child(BPTNode* parent, BPTNode* child) {
 size_t leafcount = 0;
 unsigned current_level = 0;
 
-void print_node(BPTNode* node) {
+inline void print_node(BPTNode* node) {
     printf("[ ");
     if (node->is_leaf == false){
         printf("(LEVEL %u) ",node->bpt_meta.bpt_ptrs.level);
@@ -186,7 +194,7 @@ void print_node(BPTNode* node) {
  *
  * @param node - node to print
  */
-void print_leaf(BPTNode* node) {
+inline void print_leaf(BPTNode* node) {
     printf("[ ");
     for (size_t i = 0; i < node->num_elements; i++) {
         printf(
@@ -205,7 +213,7 @@ void print_leaf(BPTNode* node) {
  *
  * @param node - node to print
  */
-void bfs_traverse_tree(BPTNode* node, bool print) {
+inline void bfs_traverse_tree(BPTNode* node, bool print) {
     BPTNode** all_nodes = malloc(sizeof(BPTNode*) * 2);
     size_t num_nodes = 1;
     size_t node_idx = 0;
@@ -843,7 +851,7 @@ SplitNode* add_to_leaf(BPTNode* bt_node, int value, size_t position) {
  * @return BPTNodeStack - this is a stack that contains the access list
  */
 BPTNodeStack* find_leaf(BPTNode* bt_node, int value) {
-    BPTNodeStack* access_stack = createStack(32);
+    BPTNodeStack* access_stack = create_stack(32);
     while (bt_node->is_leaf == false) {
         size_t i = 0;
         while (i < bt_node->num_elements) {
@@ -855,11 +863,11 @@ BPTNodeStack* find_leaf(BPTNode* bt_node, int value) {
         }
         // once we have found a child, push to the access stack
         // and move to checkout the child
-        push(access_stack, bt_node);
+        stack_push(access_stack, bt_node);
         bt_node = bt_node->bpt_meta.bpt_ptrs.children[i];
     }
     // the last item in the stack will be the leaf
-    push(access_stack, bt_node);
+    stack_push(access_stack, bt_node);
     return access_stack;
 }
 
@@ -1023,7 +1031,7 @@ BPTNode* rebalanced_insert(
         return bt_node;
     } else if (bt_node->num_elements < MAX_KEYS) {
         insert_into_tree_body(bt_node, split_node);
-        if (isEmpty(access_stack)) {
+        if (stack_is_empty(access_stack)) {
             return bt_node;
         }
         return access_stack->array[0];
@@ -1031,7 +1039,7 @@ BPTNode* rebalanced_insert(
         SplitNode new_split;
         bt_node->bpt_meta.bpt_ptrs.level++;
         split_body_node(bt_node, split_node, &new_split);
-        return rebalanced_insert(pop(access_stack),
+        return rebalanced_insert(stack_pop(access_stack),
                           &new_split,
                           access_stack);
 
@@ -1065,7 +1073,7 @@ BPTNode* btree_insert_value(
     // OTHERWISE - we need to handle normal insertion
     // find the leaf that we will add to
     BPTNodeStack* access_stack = find_leaf(bt_node, value);
-    BPTNode* leaf = pop(access_stack);
+    BPTNode* leaf = stack_pop(access_stack);
     SplitNode* split_node = add_to_leaf(leaf, value, position);
 
     // this means that we want to update the positions
@@ -1116,7 +1124,7 @@ BPTNode* btree_insert_value(
 
     /* BPTNode* parent = pop(access_stack); */
     bt_node = rebalanced_insert(
-        pop(access_stack),
+        stack_pop(access_stack),
         split_node,
         access_stack
     );

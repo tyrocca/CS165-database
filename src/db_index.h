@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 /* #include "cs165_api.h" */
-#define TESTING 0
+#define TESTING 1
 
 /// ***************************************************************************
 /// B Tree Initialization variables
@@ -27,7 +27,7 @@
 #define RESULT_SCALING 16
 
 /// ***************************************************************************
-/// B Plus Tree Types
+/// Crap to make this testing header work
 /// ***************************************************************************
 typedef enum DataType {
     INT,
@@ -51,6 +51,18 @@ typedef struct Result {
 /*     void *payload; */
 /*     /1* bool free_after_use; *1/ */
 /* } Result; */
+
+#define DEFAULT_COLUMN_SIZE 256
+typedef struct SortedIndex {
+    int* keys;              // this is a pointer to an array of keys
+    int* col_positions;     // this is a pointer to an array of positions
+    size_t num_items;       // this is a pointer to the number of items
+    size_t allocated_space; // this is the amount of allocated space for a col
+} SortedIndex;
+
+/// ***************************************************************************
+/// B Tree Specific Structures
+/// ***************************************************************************
 
 // Define the "BPTNode"
 struct BPTNode;

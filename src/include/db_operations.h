@@ -6,6 +6,7 @@
 // define the various db operations
 char* process_open(OpenOperator open_op, Status* status);
 
+void insert_into_table(Table* table, int* values, Status* status);
 char* process_insert(InsertOperator insert_op, Status* status);
 
 PrintOperator* execute_DbOperator(DbOperator* query, Status* status);

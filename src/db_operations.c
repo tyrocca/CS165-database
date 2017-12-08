@@ -81,14 +81,13 @@ long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
 }
 
 /**
- * @brief This function does the insert operation on the table
+ * @brief Function that inserts a value into the table
  *
- * @param insert_op InsertOperator
- * @param status Status - used for maintaining status
- *
- * @return string
+ * @param table
+ * @param values
+ * @param status
  */
-char* process_insert(InsertOperator insert_op, Status* status) {
+void insert_into_table(Table* table, int* values, Status* status) {
     // so we now need to have several cases
     // a) if the table has no primary index
     // b) the table has a primary index
@@ -98,45 +97,46 @@ char* process_insert(InsertOperator insert_op, Status* status) {
     //   - The column has an unclustered index
     //
     // if the column we are inserting into has
-    if (insert_op.table->primary_index == NULL) {
-        size_t row_idx = next_table_idx(insert_op.table, status);
+    //
+    if (table->primary_index == NULL) {
+        size_t row_idx = next_table_idx(table, status);
         if (status->code != OK) {
-            return NULL;
+            return;
         }
         // set the values
         // TODO: performace improvement make it so we
         // do the insertion in threads!
-        for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
-            Column* col = &insert_op.table->columns[idx];
+        for (size_t idx = 0; idx < table->col_count; idx++) {
+            Column* col = &table->columns[idx];
             // if we have an unclusted index on an unclustered column
             // we are pretty happy because that means we don't need to
             // shift the values
             if (col->index_type == BTREE) {
                 BPTNode* bt_root = ((BPTNode*) col->index);
                 col->index = (void*) btree_insert_value(bt_root,
-                                                        insert_op.values[idx],
+                                                        values[idx],
                                                         row_idx,
                                                         false);
             } else if (col->index_type == SORTED) {
                 insert_into_sorted((SortedIndex*) col->index,
-                                   insert_op.values[idx],
+                                   values[idx],
                                    row_idx);
             }
             // insert into the base data
-            insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
+            table->columns[idx].data[row_idx] = values[idx];
         }
     } else {
         // let's imagine that this works - it finds the index where the value
         // should be inserted - we should actually call this as this is the
         // new max index
-        Column* index_col = insert_op.table->primary_index;
-        int insert_val = insert_op.values[insert_op.table->primary_col_pos];
+        Column* index_col = table->primary_index;
+        int insert_val = values[table->primary_col_pos];
 
         // we should increase the size of the table - this function will do that
         // we use the next index as a place holder
-        size_t row_idx = next_table_idx(insert_op.table, status);
+        size_t row_idx = next_table_idx(table, status);
         if (status->code != OK) {
-            return NULL;
+            return;
         }
         // whether we need to shift the values
         bool shift_values = false;
@@ -144,7 +144,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
         // we increased the size
         if (index_col->index_type == BTREE) {
             if (index_col->index == NULL ||
-                index_col->data[insert_op.table->table_size - 2] <= insert_val
+                index_col->data[table->table_size - 2] <= insert_val
             ) {
                 shift_values = false;
             } else if (index_col->data[0] > insert_val) {
@@ -153,7 +153,7 @@ char* process_insert(InsertOperator insert_op, Status* status) {
             } else {
                 row_idx = btree_find_insert_position((BPTNode*) index_col->index,
                                                      insert_val);
-                shift_values = row_idx + 1 < insert_op.table->table_length;
+                shift_values = row_idx + 1 < table->table_size;
             }
         } else {
             // We are just inserting into the new column
@@ -163,50 +163,69 @@ char* process_insert(InsertOperator insert_op, Status* status) {
                 sorted_index->keys = index_col->data;
             }
             row_idx = get_sorted_idx(sorted_index, insert_val);
-            sorted_index->num_items = insert_op.table->table_length;
+            sorted_index->num_items = table->table_size;
         }
 
         // TODO: performace improvement make it so we
         // do the insertion in threads!
-        for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
-            Column* col = &insert_op.table->columns[idx];
+        for (size_t idx = 0; idx < table->col_count; idx++) {
+            Column* col = &table->columns[idx];
             if (col->index_type == BTREE) {
                 // if we have a b_tree we need to insert into the column
                 BPTNode* bt_root = ((BPTNode*) col->index);
                 col->index = (void*) btree_insert_value(
                     bt_root,
-                    insert_op.values[idx],
+                    values[idx],
                     row_idx,
                     shift_values
                 );
                 // PRINTING
                 printf("Printing tree\n");
-                print_tree(index_col->index);
+                print_tree(col->index);
             } else if (col->index_type == SORTED && col != index_col) {
                 // if we are inserting into an unclustered column then
                 // we need to pass the new position and the new index
-                insert_into_sorted((SortedIndex*) index_col->index,
-                                    insert_op.values[idx],
+                insert_into_sorted((SortedIndex*) col->index,
+                                    values[idx],
                                     row_idx);
                 printf("Printing sort\n");
-                print_sorted_index(index_col->index);
+                print_sorted_index(col->index);
             }
             // if we are inserting make sure the memory move is necessary
             // if it is we want to shift the base values down one position
             // starting with the current location
-            if (row_idx + 1 < insert_op.table->table_length) {
+            if (row_idx + 1 < table->table_size) {
                 memmove(
-                    (void*) &insert_op.table->columns[idx].data[row_idx + 1],
-                    (void*) &insert_op.table->columns[idx].data[row_idx],
-                    (insert_op.table->table_length - row_idx - 1) * sizeof(int)
+                    (void*) &table->columns[idx].data[row_idx + 1],
+                    (void*) &table->columns[idx].data[row_idx],
+                    (table->table_size - row_idx - 1) * sizeof(int)
                 );
             }
             // this is the operation to set the value
-            insert_op.table->columns[idx].data[row_idx] = insert_op.values[idx];
+            table->columns[idx].data[row_idx] = values[idx];
+
+            // TODO remove
+            if (col->index_type == SORTED && col == index_col) {
+                print_sorted_index(col->index);
+            }
         }
     }
-    printf("Printing columns\n");
-    for (size_t i = 0; i < insert_op.table->table_length; i++) {
+}
+
+/**
+ * @brief This function does the insert operation on the table
+ *
+ * @param insert_op InsertOperator
+ * @param status Status - used for maintaining status
+ *
+ * @return string
+ */
+char* process_insert(InsertOperator insert_op, Status* status) {
+    insert_into_table(insert_op.table, insert_op.values, status);
+    if (status->code != OK) {
+        return NULL;
+    }
+    for (size_t i = 0; i < insert_op.table->table_size; i++) {
         printf("Row %zu:", i);
         for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
             printf(" %d", insert_op.table->columns[idx].data[i]);

@@ -19,6 +19,7 @@ bin/*
 server
 client
 b_tree
+db_index
 scratch
 .deps
 

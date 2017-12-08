@@ -57,7 +57,7 @@ SortedIndex* create_clustered_sorted_index(int* data) {
  * @param sorted_index - the index to increase
  */
 void increase_sorted_index(SortedIndex* sorted_index) {
-    if (sorted_index->num_items == sorted_index->allocated_space) {
+    if (sorted_index->num_items >= sorted_index->allocated_space) {
         sorted_index->allocated_space *= 2;
         sorted_index->keys = realloc(
             sorted_index->keys,
@@ -290,19 +290,24 @@ void insert_into_sorted(SortedIndex* sorted_index, int value, size_t position) {
     // we need to make space - we don't need to worry about this is
     // we have a clustered column
     increase_sorted_index(sorted_index);
-    // we need to move and we need to update positions
-    if (idx + 1 < sorted_index->num_items) {
+
+    // we need to update the positions (we have a position that is
+    // new)
+    if (position + 1 < sorted_index->num_items) {
         for (size_t i = 0; i < sorted_index->num_items - 1; i++) {
             if (sorted_index->col_positions[i] >= position) {
                 sorted_index->col_positions[i]++;
             }
         }
+    }
+    // if we need to move the data
+    if (idx + 1 < sorted_index->num_items) {
         memmove((void*) &sorted_index->keys[idx + 1],
                 (void*) &sorted_index->keys[idx],
-                (sorted_index->num_items - idx) * sizeof(int));
+                (sorted_index->num_items - idx - 1) * sizeof(int));
         memmove((void*) &sorted_index->col_positions[idx + 1],
                 (void*) &sorted_index->col_positions[idx],
-                (sorted_index->num_items - idx) * sizeof(size_t));
+                (sorted_index->num_items - idx - 1) * sizeof(size_t));
     }
     sorted_index->col_positions[idx] = position;
     sorted_index->keys[idx] = value;

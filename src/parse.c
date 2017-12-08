@@ -20,6 +20,7 @@
 #include "utils.h"
 #include "client_context.h"
 #include "db_index.h"
+#include "db_operations.h"
 #define DEFAULT_COL_ALLOC 8
 #define DEFAULT_SHARED_ALLOC 16
 
@@ -190,12 +191,6 @@ void parse_create_index(char* create_arguments, Status* status) {
 
     // now setup the index stuff
     char* index_string = next_token(create_arguments_index, &status->msg_type);
-    if (strncmp(index_string, "btree", 5) == 0) {
-        column->index_type = BTREE;
-    } else {
-        column->index_type = SORTED;
-        column->index = create_clustered_sorted_index(column->data);
-    }
     assert(create_arguments_index != NULL);
 
     // now handle the clustering things
@@ -221,6 +216,15 @@ void parse_create_index(char* create_arguments, Status* status) {
         }
     }
 
+    if (strncmp(index_string, "btree", 5) == 0) {
+        column->index_type = BTREE;
+    } else if (column->clustered) {
+        column->index_type = SORTED;
+        column->index = create_clustered_sorted_index(column->data);
+    } else {
+        column->index_type = SORTED;
+        column->index = create_unclustered_sorted_index();
+    }
 }
 
 /**
@@ -541,15 +545,18 @@ void parse_load(char* query_command, Status* status) {
 
     // TODO: edge case - the file is super wide
     // We know the max width is col_count
+    int data[table->col_count];
     while (fgets(csv_line, DEFAULT_READ_SIZE, load_file)) {
         char* token = NULL;
         char* read_ptr = csv_line;
-        size_t data_idx = next_table_idx(table, status);
+        /* size_t data_idx = next_table_idx(table, status); */
         size_t col_idx = 0;
         while ((token = strsep(&read_ptr, ",")) != NULL &&
                 col_idx < table->col_count) {
-            table->columns[col_idx++].data[data_idx] = atoi(token);
+            /* table->columns[col_idx++].data[data_idx] = atoi(token); */
+            data[col_idx++] = atoi(token);
         }
+        insert_into_table(table, data, status);
     }
     if (status->code == OK) {
         status->msg_type = OK_DONE;

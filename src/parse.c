@@ -556,6 +556,7 @@ void parse_load(char* query_command, Status* status) {
         }
         insert_into_table(table, data, status);
     }
+
     if (status->code == OK) {
         status->msg_type = OK_DONE;
     }

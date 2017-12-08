@@ -20,6 +20,7 @@
 create(db,"db1")
 create(tbl,"tbl1",db1,1)
 create(col,"col1",db1.tbl1)
+create(idx, db1.tbl1.col1, btree, clustered)
 load("../project_tests_1M/data1.csv")
 relational_insert(db1.tbl1,-1)
 relational_insert(db1.tbl1,-2)

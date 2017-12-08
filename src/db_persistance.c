@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "cs165_api.h"
+#include "db_index.h"
 #define MAX_LINE_LEN 2048
 
 // This is used for the storage
@@ -347,6 +348,13 @@ Status sync_db(Db* db) {
  * @param column - Column* - free column parts
  */
 void free_column(Column* column) {
+    if (column->index) {
+        if (column->index_type == BTREE) {
+            free_tree(column->index);
+        } else {
+            free_sorted_index(column->index);
+        }
+    }
     free(column->data);
 }
 

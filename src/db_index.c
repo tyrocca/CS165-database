@@ -315,6 +315,14 @@ void print_sorted_index(SortedIndex* sorted_index) {
     }
 }
 
+void free_sorted_index(SortedIndex* sorted_index) {
+    if (sorted_index->has_positions) {
+        free(sorted_index->keys);
+        free(sorted_index->col_positions);
+    }
+    free(sorted_index);
+}
+
 
 /// ***************************************************************************
 /// Stack functions
@@ -1287,9 +1295,6 @@ BPTNode* btree_insert_value(
     }
 
     // Handle rebalancing - this is the case when we have 1 empty value
-
-
-    /* BPTNode* parent = pop(access_stack); */
     bt_node = rebalanced_insert(
         stack_pop(access_stack),
         split_node,

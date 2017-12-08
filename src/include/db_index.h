@@ -119,6 +119,7 @@ typedef struct SplitNode {
 // ****************************************************************************
 
 
+void free_sorted_index(SortedIndex* sorted_index);
 void free_tree(BPTNode* node);
 void print_tree(BPTNode* node);
 void print_sorted_index(SortedIndex* sorted_index);

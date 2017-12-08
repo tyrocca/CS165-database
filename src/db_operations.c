@@ -179,17 +179,12 @@ void insert_into_table(Table* table, int* values, Status* status) {
                     row_idx,
                     shift_values
                 );
-                // PRINTING
-                printf("Printing tree\n");
-                print_tree(col->index);
             } else if (col->index_type == SORTED && col != index_col) {
                 // if we are inserting into an unclustered column then
                 // we need to pass the new position and the new index
                 insert_into_sorted((SortedIndex*) col->index,
                                     values[idx],
                                     row_idx);
-                printf("Printing sort\n");
-                print_sorted_index(col->index);
             }
             // if we are inserting make sure the memory move is necessary
             // if it is we want to shift the base values down one position
@@ -205,9 +200,9 @@ void insert_into_table(Table* table, int* values, Status* status) {
             table->columns[idx].data[row_idx] = values[idx];
 
             // TODO remove
-            if (col->index_type == SORTED && col == index_col) {
-                print_sorted_index(col->index);
-            }
+            /* if (col->index_type == SORTED && col == index_col) { */
+            /*     print_sorted_index(col->index); */
+            /* } */
         }
     }
 }
@@ -224,13 +219,6 @@ char* process_insert(InsertOperator insert_op, Status* status) {
     insert_into_table(insert_op.table, insert_op.values, status);
     if (status->code != OK) {
         return NULL;
-    }
-    for (size_t i = 0; i < insert_op.table->table_size; i++) {
-        printf("Row %zu:", i);
-        for (size_t idx = 0; idx < insert_op.table->col_count; idx++) {
-            printf(" %d", insert_op.table->columns[idx].data[i]);
-        }
-        printf("\n");
     }
     status->msg_type = OK_DONE;
     free(insert_op.values);

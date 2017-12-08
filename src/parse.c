@@ -549,11 +549,9 @@ void parse_load(char* query_command, Status* status) {
     while (fgets(csv_line, DEFAULT_READ_SIZE, load_file)) {
         char* token = NULL;
         char* read_ptr = csv_line;
-        /* size_t data_idx = next_table_idx(table, status); */
         size_t col_idx = 0;
         while ((token = strsep(&read_ptr, ",")) != NULL &&
                 col_idx < table->col_count) {
-            /* table->columns[col_idx++].data[data_idx] = atoi(token); */
             data[col_idx++] = atoi(token);
         }
         insert_into_table(table, data, status);

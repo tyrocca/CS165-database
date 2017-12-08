@@ -18,9 +18,9 @@
 /* #define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node */
 
 /* #if TESTING */
-#define MAX_DEGREE 4
+/* #define MAX_DEGREE 4 */
 /* #else */
-/* #define MAX_DEGREE 340 */
+#define MAX_DEGREE 340
 /* #endif */
 
 #define MAX_KEYS (MAX_DEGREE - 1)
@@ -28,13 +28,12 @@
 #define MIN_DEGREE (MIN_KEYS + 1)
 
 
-#define RESULT_SCALING 16
-
 /// ***************************************************************************
 /// Database Indexing Types
 /// ***************************************************************************
 
-#define SORTED_NODE_SIZE 3
+// should be 1 page worth of values
+#define SORTED_NODE_SIZE 1024
 typedef struct SortedIndex {
     int* keys;              // this is a pointer to an array of keys
     size_t* col_positions;     // this is a pointer to an array of positions

@@ -9,6 +9,271 @@
 #include <time.h>
 #endif
 
+
+
+// MOVED THESE HERE
+void test_sorted_index() {
+    SortedIndex* sorted_index = create_unclustered_sorted_index();
+    srand(time(NULL));
+    /* size_t pos = 0; */
+    /* for (size_t i = 0; i < 20; i++) { */
+    /*     if (i < 10 || i > 13) { */
+    /*         insert_into_sorted(sorted_index, i, pos++); */
+    /*     } */
+    /* } */
+    /* print_sorted_index(sorted_index); */
+    insert_into_sorted(sorted_index, 1, 1);
+    insert_into_sorted(sorted_index, 5, 0);
+    insert_into_sorted(sorted_index, 2, 2);
+    insert_into_sorted(sorted_index, 8, 2);
+    insert_into_sorted(sorted_index, 8, 3);
+    insert_into_sorted(sorted_index, 6, 4);
+    insert_into_sorted(sorted_index, 1, 3);
+    insert_into_sorted(sorted_index, 5, 6);
+    sorted_index->has_positions = false;
+
+    // BUGS
+    // - catching values that shouldn't be in there
+    print_sorted_index(sorted_index);
+    get_range_sorted(sorted_index, 6, 8);
+    printf("Should find 1 value\n");
+
+    get_range_sorted(sorted_index, 5, 6);
+    printf("Should find 2 value\n");
+
+    get_range_sorted(sorted_index, 8, 10);
+    printf("Should find 2 value\n");
+
+    get_range_sorted(sorted_index, 10, 12);
+    printf("Should find 0 values\n");
+
+    get_range_sorted(sorted_index, 2, 5);
+    printf("Should find 1 values\n");
+
+    get_range_sorted(sorted_index, 3, 5);
+    printf("Should find 0 values\n");
+
+    get_range_sorted(sorted_index, 1, 9);
+    printf("Should find 8 values\n");
+
+    get_range_sorted(sorted_index, 1, 7);
+    printf("Should find 6 values\n");
+
+
+    /* /1* print_sorted_index(sorted_index); *1/ */
+    /* for (size_t i = 0; i < 20; i++) { */
+    /*     int val = rand() % 400; */
+    /*     printf("Inserting %d\n", val); */
+    /*     insert_into_sorted(sorted_index, val, pos++); */
+    /*     printf("This is the index\n"); */
+    /*     print_sorted_index(sorted_index); */
+    /* } */
+
+    /* get_range_sorted(sorted_index, 0, 4); */
+    /* insert_into_sorted(sorted_index, 3, pos++); */
+    /* printf("This is the index\n"); */
+    /* print_sorted_index(sorted_index); */
+    /* insert_into_sorted(sorted_index, 4, pos++); */
+    /* printf("This is the index\n"); */
+    /* print_sorted_index(sorted_index); */
+    /* insert_into_sorted(sorted_index, 9, pos++); */
+    /* printf("This is the index\n"); */
+    /* print_sorted_index(sorted_index); */
+    /* printf("This is the index\n"); */
+    /* insert_into_sorted(sorted_index, 5, 0); */
+    /* print_sorted_index(sorted_index); */
+}
+
+/**
+ * @brief Function that tests our print
+ */
+void testing_print() {
+    BPTNode* root = create_node();
+    root->num_elements = 2;
+    root->node_vals[0] = 0;
+    root->node_vals[1] = 10;
+
+    BPTNode* left = create_node();
+    root->bpt_meta.bpt_ptrs.children[0] = left;
+    left->num_elements = 1;
+    left->node_vals[0] = -1;
+
+    BPTNode* asdf = create_leaf();
+    left->bpt_meta.bpt_ptrs.children[0] = asdf;
+    asdf->num_elements = 1;
+    asdf->node_vals[0] = -15;
+    asdf->bpt_meta.bpt_leaf.col_pos[0] = 225;
+
+    BPTNode* qwer = create_leaf();
+    left->bpt_meta.bpt_ptrs.children[1] = qwer;
+    qwer->num_elements = 1;
+    qwer->node_vals[0] = -30;
+    qwer->bpt_meta.bpt_leaf.col_pos[0] = 900;
+
+
+    BPTNode* middle = create_leaf();
+    root->bpt_meta.bpt_ptrs.children[1] = middle;
+    middle->num_elements = 1;
+    middle->node_vals[0] = 5;
+    middle->bpt_meta.bpt_leaf.col_pos[0] = 25;
+
+    BPTNode* right = create_leaf();
+    root->bpt_meta.bpt_ptrs.children[2] = right;
+    right->num_elements = 1;
+    right->node_vals[0] = 200;
+    middle->bpt_meta.bpt_leaf.col_pos[0] = 40000;
+
+    print_tree(root);
+
+    free(right);
+    free(middle);
+    free(qwer);
+    free(asdf);
+    free(left);
+    free(root);
+}
+/* #endif */
+
+
+#if TESTING
+/**
+ * @brief Simple function that makes sure that inseting into the
+ *  leaves works
+ */
+void test_leaf_insert() {
+    // single insert test
+    printf("Single Insert\n");
+    BPTNode* node = create_node();
+    insert_into_leaf(node, 10, 1);
+    printf("== Expected ==\n");
+    printf("[ (10, 1) ]\n");
+    print_leaf(node);
+    printf("== Result ==\n");
+    free(node);
+
+    // multiple insert test
+    printf("Multiple Insert\n");
+    BPTNode* node2 = create_leaf();
+    insert_into_leaf(node2, 10, 3);
+    insert_into_leaf(node2, 5, 4);
+    #if MAX_KEYS >= 3
+    insert_into_leaf(node2, 10, 1);
+    #endif
+    printf("== Expected ==\n");
+    printf("[ (5, 4) (10, 1) (10, 3) ]\n");
+    print_leaf(node2);
+    printf("== Result ==\n");
+    free(node2);
+}
+#endif
+
+#if TESTING
+// function that tests splitting the leaf
+void test_split_leaf() {
+    SplitNode split_node;
+    printf("Splitting Node\n");
+    BPTNode* node = create_leaf();
+    insert_into_leaf(node, 10, 3);
+    insert_into_leaf(node, 5, 4);
+    #if MAX_KEYS >= 3
+    insert_into_leaf(node, 8, 4);
+    #endif
+    print_leaf(node);
+
+
+    split_leaf(node, 12, 3, &split_node);
+    print_leaf(split_node.left_leaf);
+    print_leaf(split_node.right_leaf);
+    printf("Middle %d\n", split_node.middle_val);
+    free(node);
+}
+#endif
+
+
+#if TESTING
+void testing_kick_up() {
+    srand(time(NULL));
+
+    BPTNode* root = NULL;
+    for (int i = 1; i < 100; i++) {
+        int val = rand() % 200;
+        size_t pos = (size_t) rand() % 2000;
+        /* printf("\nInserting %dth: value %d, position %zu\n", i, val, pos); */
+        root = btree_insert_value(root, val, pos, false);
+    }
+    print_tree(root);
+    free_tree(root);
+
+}
+
+void testing_search() {
+    srand(time(NULL));
+    BPTNode* root = NULL;
+    size_t pos = 0;
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    /* root = btree_insert_value(root, 3, pos++, false); */
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 5; j++) {
+            int val = i;
+            root = btree_insert_value(root, val, pos++, false);
+        }
+    }
+    /* root = btree_insert_value(root, 10, pos++); */
+    /* root = btree_insert_value(root, 10, pos++); */
+    /* root = btree_insert_value(root, 10, pos++); */
+    /*     } */
+    /* } */
+    print_tree(root);
+    /* root = btree_insert_value(root, 3, 19, true); */
+    /* print_tree(root); */
+
+
+
+    /* Result* result = find_values_unclustered(root, 0, 100); */
+    Result* result = find_values_clustered(root, 4, 5);
+    printf("Should insert at %zu ", btree_find_insert_position(root, 3));
+    /* Result* result = find_values_unclustered(root, 4, 6); */
+    /* Result* result = find_values_unclustered(root, 15, 18); */
+    for (size_t i = 0; i < result->num_tuples;) {
+        printf("%zu\n", ((size_t*)result->payload)[i++]);
+    }
+    printf("\n TOTAL: %zu\n", result->num_tuples);
+    free(result->payload);
+    free(result);
+    free_tree(root);
+}
+#endif
+
+
+
+#if TESTING
+/* int main(void) { */
+/*     printf("Testing leaf insert\n"); */
+/*     /1* testing_search(); *1/ */
+/*     test_sorted_index(); */
+/*     printf("SIZE is %zu\n", sizeof(BPTNode)); */
+/*     return 0; */
+/* } */
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // function to create a stack of given capacity. It initializes size of
 // stack as 0
 #define DEFAULT_DEPTH 32

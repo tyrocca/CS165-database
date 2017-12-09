@@ -212,10 +212,11 @@ size_t get_sorted_idx(SortedIndex* sorted_index, int value) {
  * @param sorted_index
  * @param low
  * @param high
+ * @param result
  *
  * @return values
  */
-Result* get_range_sorted(SortedIndex* sorted_index, int low, int high) {
+void get_range_sorted(SortedIndex* sorted_index, int low, int high, Result* result) {
     size_t low_bound = get_sorted_idx(sorted_index, low);
     size_t high_bound = get_sorted_idx(sorted_index, high);
 
@@ -229,15 +230,13 @@ Result* get_range_sorted(SortedIndex* sorted_index, int low, int high) {
         high_bound--;
     }
 
-
     // start setting the results
-    Result* result = malloc(sizeof(Result));
     result->data_type = INDEX;
     result->num_tuples = result->capacity = high_bound - low_bound;
     if (low_bound == high_bound) {
         result->num_tuples = 0;
         result->capacity = 0;
-        return result;
+        return;
     }
 
     // allocate space for the result
@@ -253,7 +252,7 @@ Result* get_range_sorted(SortedIndex* sorted_index, int low, int high) {
             ((size_t*) result->payload)[i++] = low_bound++;
         }
     }
-    return result;
+    return;
 }
 
 /// ***************************************************************************
@@ -674,22 +673,23 @@ size_t btree_find_insert_position(BPTNode* root, int value) {
  * @param root - the bplus tree root to search from
  * @param gte_val - the min value
  * @param lt_val - the max value
+ * @param result - the result column to add to
  *
  * @return  result - the result (allocated in function)
  */
-Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
-    Result* result = malloc(sizeof(Result));
+void find_values_unclustered(BPTNode* root, int gte_val, int lt_val, Result* result) {
     result->data_type = INDEX;
     result->capacity = MAX_KEYS;
     result->num_tuples = 0;
     result->payload = malloc(sizeof(size_t) * result->capacity);
+    print_tree(root);
 
     // if the high bound is the rightmost leaf and nothing satisfies it
     // then we know that there is no match
     BPTNode* high_bound = search_for_leaf(root, lt_val);
-    if (high_bound->node_vals[0] < lt_val &&
+    if (high_bound->node_vals[0] < gte_val &&
             high_bound->bpt_meta.bpt_leaf.prev_leaf == NULL) {
-        return result;
+        return;
     }
 
     // if the low bound is the rightmost leaf and it doesn't fit
@@ -697,7 +697,7 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
     BPTNode* low_bound = search_for_leaf(root, gte_val);
     if (low_bound->node_vals[low_bound->num_elements - 1] < lt_val &&
             low_bound->bpt_meta.bpt_leaf.next_leaf == NULL) {
-        return result;
+        return;
     }
 
     // Next we need to adjust the low bound. We want the low bound to be
@@ -772,7 +772,7 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
                                       sizeof(size_t) * result->num_tuples);
         }
     }
-    return result;
+    return;
 }
 
 /**
@@ -781,27 +781,28 @@ Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val) {
  * @param root
  * @param gte_val
  * @param lt_val
+ * @param result
  *
  * @return
  */
-Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
-    Result* result = malloc(sizeof(Result));
+void find_values_clustered(BPTNode* root, int gte_val, int lt_val, Result* result) {
     result->data_type = INDEX;
     result->num_tuples = 0;
     result->payload = NULL;
+    print_tree(root);
 
     // get right bound and check that it works
     BPTNode* high_bound = search_for_leaf(root, lt_val);
-    if (high_bound->node_vals[0] < lt_val &&
+    if (high_bound->node_vals[0] < gte_val &&
             high_bound->bpt_meta.bpt_leaf.prev_leaf == NULL) {
-        return result;
+        return;
     }
 
     // get left bound and check that it also works
     BPTNode* low_bound = search_for_leaf(root, gte_val);
     if (low_bound->node_vals[low_bound->num_elements - 1] < lt_val &&
             low_bound->bpt_meta.bpt_leaf.next_leaf == NULL) {
-        return result;
+        return;
     }
 
     // next find the lowest low bound that satisfies the predicate
@@ -876,7 +877,7 @@ Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val) {
     while (low_idx < high_idx) {
         ((size_t*)result->payload)[i++] = low_idx++;
     }
-    return result;
+    return;
 }
 
 

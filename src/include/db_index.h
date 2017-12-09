@@ -138,7 +138,7 @@ SortedIndex* create_clustered_sorted_index(int* data);
 
 // Search function
 size_t get_sorted_idx(SortedIndex* sorted_index, int value);
-Result* get_range_sorted(SortedIndex* sorted_index, int low, int high);
+void get_range_sorted(SortedIndex* sorted_index, int low, int high, Result* result);
 
 // Insertion (for unclustered)
 void insert_into_sorted(SortedIndex* sorted_index, int value, size_t position);
@@ -149,8 +149,8 @@ void insert_into_sorted(SortedIndex* sorted_index, int value, size_t position);
 /// **************************************************************************
 
 size_t btree_find_insert_position(BPTNode* root, int value);
-Result* find_values_unclustered(BPTNode* root, int gte_val, int lt_val);
-Result* find_values_clustered(BPTNode* root, int gte_val, int lt_val);
+void find_values_unclustered(BPTNode* root, int gte_val, int lt_val, Result* result);
+void find_values_clustered(BPTNode* root, int gte_val, int lt_val, Result* result);
 
 // the overall insertion function for b_tree
 BPTNode* btree_insert_value(

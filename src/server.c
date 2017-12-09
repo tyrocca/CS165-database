@@ -157,6 +157,18 @@ void print_to_client(
     } else {
         print_sz = *print_op->print_objects[0].column_pointer.column->size_ptr;
     }
+
+    // if nothing to print, just return! - TODO is this okay?
+    if (print_sz == 0) {
+        status->msg_type = OK_DONE;
+        msg->length = 0;
+        msg->payload = NULL;
+        msg->status = status->msg_type;
+        send_to_client(client_socket, msg, NULL);
+        free(print_op->print_objects);
+        return;
+    }
+
     // when formatting the string for dumping, do this
     char response[DEFAULT_QUERY_BUFFER_SIZE];
     size_t row_idx = 0;

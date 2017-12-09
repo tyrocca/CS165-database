@@ -4,8 +4,6 @@
 #include "db_operations.h"
 #include "client_context.h"
 #include "db_index.h"
-// TODO remove me
-#include <stdio.h>
 
 #define DEFAULT_COLUMN_SIZE 4096
 
@@ -239,6 +237,7 @@ char* process_open(OpenOperator open_op, Status* status) {
 /**
  * @brief Function that returns a result column given an array
  * of selections. The column contains an array of indices
+ *  TODO: could break if empty
  *
  * @param comp
  * @param result_col
@@ -246,25 +245,35 @@ char* process_open(OpenOperator open_op, Status* status) {
 void select_from_col(Comparator* comp, Result* result_col) {
     // TODO: Make it so this only does 1 comparison at a time
     Column* col = comp->gen_col->column_pointer.column;
-    size_t* positions = malloc(sizeof(size_t) * (*col->size_ptr));
-    result_col->num_tuples = 0;
-    for (size_t idx = 0; idx < *col->size_ptr; idx++) {
-        positions[result_col->num_tuples] = idx;
-        // TODO: what if we are at the top bound for high? will we not get max?
-        result_col->num_tuples += (col->data[idx] >= comp->p_low &&
-                                   col->data[idx] < comp->p_high);
+
+    if (col->index_type == NONE || col->index == NULL) {
+        size_t* positions = malloc(sizeof(size_t) * (*col->size_ptr));
+        result_col->num_tuples = 0;
+        for (size_t idx = 0; idx < *col->size_ptr; idx++) {
+            positions[result_col->num_tuples] = idx;
+            // TODO: what if we are at the top bound for high? will we not get max?
+            result_col->num_tuples += (col->data[idx] >= comp->p_low &&
+                                       col->data[idx] < comp->p_high);
+        }
+        // if no matches return
+        if (result_col->num_tuples == 0) {
+            free(positions);
+            result_col->payload = NULL;
+            return;
+        }
+        // reallocate to the exact size of the column
+        result_col->payload = (void*) realloc(
+            positions,
+            sizeof(size_t) * result_col->num_tuples
+        );
+    } else if (col->index_type == SORTED) {
+        get_range_sorted(col->index, comp->p_low, comp->p_high, result_col);
+    } else if (col->index_type == BTREE && col->clustered == true) {
+        find_values_clustered(col->index, comp->p_low, comp->p_high, result_col);
+    } else {
+        find_values_unclustered(col->index, comp->p_low, comp->p_high, result_col);
     }
-    // if no matches return
-    if (result_col->num_tuples == 0) {
-        free(positions);
-        result_col->payload = NULL;
-        return;
-    }
-    // reallocate to the exact size of the column
-    result_col->payload = (void*) realloc(
-        positions,
-        sizeof(size_t) * result_col->num_tuples
-    );
+    return;
 }
 
 /**

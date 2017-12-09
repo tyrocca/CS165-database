@@ -682,7 +682,6 @@ void find_values_unclustered(BPTNode* root, int gte_val, int lt_val, Result* res
     result->capacity = MAX_KEYS;
     result->num_tuples = 0;
     result->payload = malloc(sizeof(size_t) * result->capacity);
-    print_tree(root);
 
     // if the high bound is the rightmost leaf and nothing satisfies it
     // then we know that there is no match
@@ -789,7 +788,6 @@ void find_values_clustered(BPTNode* root, int gte_val, int lt_val, Result* resul
     result->data_type = INDEX;
     result->num_tuples = 0;
     result->payload = NULL;
-    print_tree(root);
 
     // get right bound and check that it works
     BPTNode* high_bound = search_for_leaf(root, lt_val);

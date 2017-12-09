@@ -18,9 +18,9 @@
 /* #define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node */
 
 /* #if TESTING */
-#define MAX_DEGREE 3
+/* #define MAX_DEGREE */
 /* #else */
-/* #define MAX_DEGREE 340 */
+#define MAX_DEGREE 340
 /* #endif */
 
 #define MAX_KEYS (MAX_DEGREE - 1)

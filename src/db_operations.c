@@ -198,11 +198,6 @@ void insert_into_table(Table* table, int* values, Status* status) {
             }
             // this is the operation to set the value
             table->columns[idx].data[row_idx] = values[idx];
-
-            // TODO remove
-            /* if (col->index_type == SORTED && col == index_col) { */
-            /*     print_sorted_index(col->index); */
-            /* } */
         }
     }
 }

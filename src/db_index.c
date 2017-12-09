@@ -398,14 +398,14 @@ BPTNode* allocate_node(bool leaf) {
     return new_node;
 }
 
-/// Make a node
+// Make a node
 BPTNode* create_node() {
     BPTNode* node = allocate_node(false);
     node->bpt_meta.bpt_ptrs.level = (unsigned) -1;
     return node;
 }
 
-/// Make a leaf
+// Make a leaf
 BPTNode* create_leaf() {
     return allocate_node(true);
 }
@@ -485,20 +485,28 @@ void print_leaf(BPTNode* node) {
     printf("]\n");
 }
 
+typedef enum BTreeTraversalOp {
+    FREE_NODE,
+    PRINT_NODE,
+    DUMP_NODE,
+} BTreeTraversalOp;
+
 /**
  * @brief Function that prints a tree from a given node
  *      there should be a new line for each level (does
  *      printing in a BFS manner
  *
  * @param node - node to print
+ * @param operation - tree operation to perform
  */
-void bfs_traverse_tree(BPTNode* node, bool print) {
+
+void bfs_traverse_tree(BPTNode* node, BTreeTraversalOp tree_op, FILE* dumpfile) {
     BPTNode** all_nodes = malloc(sizeof(BPTNode*) * 2);
     size_t num_nodes = 1;
     size_t node_idx = 0;
     all_nodes[node_idx] = node;
 
-    if (print) {
+    if (tree_op == PRINT_NODE) {
         leafcount = 0;
     }
 
@@ -508,7 +516,8 @@ void bfs_traverse_tree(BPTNode* node, bool print) {
         BPTNode* current_node = all_nodes[node_idx];
         // if we have have a node with bpt_ptrs.children
         if (current_node->is_leaf == false) {
-            // these are the number of nodes that we will be adding
+            // these are the number of nodes that we will be adding - we have
+            // one extra because there are n + 1 children (as there are fences)
             size_t to_add = current_node->num_elements + 1;
             // increase our queue of nodes, it will now be equal to the length
             // currently plus
@@ -522,23 +531,34 @@ void bfs_traverse_tree(BPTNode* node, bool print) {
             // increase number of nodes
             num_nodes += to_add;
         }
-        if (print) {
-            print_node(current_node);
-        } else {
-            free(current_node);
+        switch (tree_op) {
+            case PRINT_NODE:
+                print_node(current_node);
+                break;
+            case FREE_NODE:
+                free(current_node);
+                break;
+            case DUMP_NODE:
+                fwrite(current_node, sizeof(BPTNode), 1, dumpfile);
+                break;
         }
         node_idx++;
     }
     free(all_nodes);
-    if (print) {
+    if (tree_op == PRINT_NODE) {
         printf("\n");
     }
 }
 void print_tree(BPTNode* node) {
-    bfs_traverse_tree(node, true);
+    bfs_traverse_tree(node, PRINT_NODE, NULL);
 }
 void free_tree(BPTNode* node) {
-    bfs_traverse_tree(node, false);
+    bfs_traverse_tree(node, FREE_NODE, NULL);
+}
+void dump_tree(BPTNode* node, char* fname) {
+    FILE* index_file = fopen(fname, "wb");
+    bfs_traverse_tree(node, DUMP_NODE, index_file);
+    fclose(index_file);
 }
 
 

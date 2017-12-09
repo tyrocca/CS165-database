@@ -18,9 +18,9 @@
 /* #define MAX_DEGREE (2 * MIN_DEGREE)  // Max num pointers from a node */
 
 /* #if TESTING */
-/* #define MAX_DEGREE 4 */
+#define MAX_DEGREE 3
 /* #else */
-#define MAX_DEGREE 340
+/* #define MAX_DEGREE 340 */
 /* #endif */
 
 #define MAX_KEYS (MAX_DEGREE - 1)
@@ -63,7 +63,7 @@ typedef struct BPTLeaf {
  */
 typedef struct BPTPointers {
     struct BPTNode* children[MAX_DEGREE];  // Array of pointers to childern
-    /* bool is_root;                          // Bool to indicate if is root */
+    bool is_root;                          // Bool to indicate if is root
     unsigned int level;                    // Level of the tree
 } BPTPointers;
 
@@ -86,6 +86,7 @@ typedef struct BPTNode {
     size_t num_elements;         // this is the currently used size of the array
     int node_vals[MAX_KEYS];     // these are the datapoints
     bool is_leaf;                // this tells us the type
+    char padding[3];
 } BPTNode;
 
 // A structure to represent a stack
@@ -123,6 +124,8 @@ void free_sorted_index(SortedIndex* sorted_index);
 void free_tree(BPTNode* node);
 void print_tree(BPTNode* node);
 void print_sorted_index(SortedIndex* sorted_index);
+void dump_tree(BPTNode* node, char* fname);
+
 
 
 /// ***************************************************************************

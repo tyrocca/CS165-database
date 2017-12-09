@@ -8,6 +8,10 @@
 #include <assert.h>
 #define MAX_LINE_LEN 2048
 
+/// ***************************************************************************
+/// Serialization Types
+/// ***************************************************************************
+
 // This is used for the storage
 typedef enum StorageType {
     STORED_DB = 1,
@@ -23,11 +27,37 @@ typedef struct StorageGroup {
     StorageType type;
 } StorageGroup;
 
-// this is used for storing columns
-typedef struct StoredColumn {
-    char name[MAX_SIZE_NAME];
-    bool clustered;
-} StoredColumn;
+/*typedef struct StoredBPTNode {*/
+
+/*}*/
+/*typedef struct BPTLeaf {*/
+/*    size_t col_pos[MAX_KEYS];  // these are the positions*/
+/*    struct BPTNode* next_leaf; // this is the next pointer (next leaf)*/
+/*    struct BPTNode* prev_leaf; // this is the previous pointer (previous leaf)*/
+/*} BPTLeaf;*/
+
+/***/
+/* * @brief This is a struct for the pointers to other leaves. We can*/
+/* * have n+1 of them*/
+/*typedef struct BPTPointers {*/
+/*    struct BPTNode* children[MAX_DEGREE];  // Array of pointers to childern*/
+/*    bool is_root;                          // Bool to indicate if is root*/
+/*    unsigned int level;                    // Level of the tree*/
+/*} BPTPointers;*/
+
+/***/
+/* * @brief This union is either a pointer to an array of nodes (if*/
+/* * we have a node), or is a pointer to an array of column positions*/
+/* * (if we have struct)*/
+/*typedef union BPTMeta {*/
+/*    BPTLeaf bpt_leaf;*/
+/*    BPTPointers bpt_ptrs;*/
+/*} BPTMeta;*/
+
+
+/// ***************************************************************************
+/// Helper functions
+/// ***************************************************************************
 
 /**
  * @brief This function generates the table file name
@@ -70,10 +100,81 @@ int make_index_fname(char* db_name, char* table_name, char* col_name, char* file
     return sprintf(fileoutname, "./database/%s.%s.%s.index.bin", db_name, table_name, col_name);
 }
 
-///////////////////////
-// LOADING FUNCTIONS //
-///////////////////////
+/**
+ * @brief This function loads all of the nodes back in
+ *
+ * @param loadfile - the file to read from
+ *
+ * @return - the new pointer
+ */
+BPTNode* load_btree(FILE* loadfile) {
+    if (loadfile == NULL) {
+        return NULL;
+    }
 
+    // otherwise start loading
+    BPTNode* root_node = calloc(1, sizeof(BPTNode));
+    fread(root_node, sizeof(BPTNode), 1, loadfile);
+
+    // allocate space to hold the nodes
+    BPTNode** all_nodes = malloc(sizeof(BPTNode*) * 2);
+    size_t num_nodes = 1;
+    size_t node_idx = 0;
+    all_nodes[node_idx] = root_node;
+
+    BPTNode* first_child = NULL;
+    BPTNode* prev_child = NULL;
+    while (node_idx < num_nodes) {
+        // if there are bpt_ptrs.children nodes
+        // copy the node into a current node
+        BPTNode* current_node = all_nodes[node_idx];
+        // if we have have a node with bpt_ptrs.children
+        if (current_node->is_leaf == false) {
+            // these are the number of nodes that we will be adding
+            size_t to_add = current_node->num_elements + 1;
+            // increase our queue of nodes, it will now be equal to the length
+            // currently plus the new space
+            all_nodes = realloc(all_nodes, sizeof(BPTNode*) * (num_nodes + to_add));
+            // create a list of child nodes
+            // set the parent to point to the children
+            for (size_t i = 0; i < to_add; i++) {
+                BPTNode* read_node = calloc(1, sizeof(BPTNode));
+                fread((void*) read_node, sizeof(BPTNode), 1, loadfile);
+                current_node->bpt_meta.bpt_ptrs.children[i] = read_node;
+            }
+            // add to the queue
+            memcpy(
+                (void*) &all_nodes[num_nodes],
+                (void*) current_node->bpt_meta.bpt_ptrs.children,
+                sizeof(BPTNode*) * to_add
+            );
+            // increase number of nodes
+            num_nodes += to_add;
+        } else {
+            if (first_child == NULL) {
+                first_child = prev_child = current_node;
+            } else {
+                prev_child->bpt_meta.bpt_leaf.next_leaf = current_node;
+                current_node->bpt_meta.bpt_leaf.prev_leaf = prev_child;
+                prev_child = current_node;
+            }
+        }
+        node_idx++;
+    }
+    free(all_nodes);
+    return root_node;
+}
+
+/// ***************************************************************************
+/// Loading Functions
+/// ***************************************************************************
+
+/**
+ * @brief This function does the loading of an index
+ *
+ * @param filename
+ * @param column
+ */
 void load_index(char* filename, Column* column) {
     // if we have a sorted clusteted column we don't have to do anything as
     // the data is already organized
@@ -81,8 +182,6 @@ void load_index(char* filename, Column* column) {
         SortedIndex* sorted_index = create_clustered_sorted_index(column->data);
         sorted_index->num_items = *column->size_ptr;
         column->index = (void*) sorted_index;
-        printf("printing %s\n", filename);
-        print_sorted_index(sorted_index);
         return;
     } else if (column->index_type == SORTED) {
         SortedIndex* sorted_index = create_unclustered_sorted_index(
@@ -96,10 +195,10 @@ void load_index(char* filename, Column* column) {
         fread(sorted_index->col_positions, sizeof(size_t),
               sorted_index->num_items, index_file);
         fclose(index_file);
-        printf("printing %s\n", filename);
-        print_sorted_index(sorted_index);
     } else {
-        assert("NOT IMPLEMENTED" == NULL);
+        FILE* index_file = fopen(filename, "rb");
+        column->index = load_btree(index_file);
+        fclose(index_file);
     }
 }
 
@@ -124,7 +223,6 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
     tbl_ptr->table_length = sg_ptr->count_3;
 
     // load the column file
-    /* StoredColumn* scolumns = malloc(sizeof(StoredColumn) * tbl_ptr->col_count); */
     Column* columns = tbl_ptr->columns;
     char table_fname[MAX_SIZE_NAME * 2 + 8];
     make_table_fname(current_db->name, tbl_ptr->name, table_fname);
@@ -227,21 +325,10 @@ Status db_startup() {
     return startup_status;
 }
 
-///////////////////////
-// STORAGE FUNCTIONS //
-///////////////////////
 
-/**
- * @brief This function takes a column and reformats it to be stored
- *
- * @param column - Column*
- * @return StoredColumn
- */
-StoredColumn store_column(Column* column) {
-    StoredColumn sc;
-    strcpy(sc.name, column->name);
-    return sc;
-}
+/// ***************************************************************************
+/// Storage Functions
+/// ***************************************************************************
 
 /**
  * @brief This function takes a table and reformats it to be stored
@@ -293,7 +380,7 @@ void dump_index(char* filename, Column* column) {
                sorted_index->num_items, index_file);
         fclose(index_file);
     } else {
-        assert("NOT DONE - DUMP BTREE" == NULL);
+        dump_tree(column->index, filename);
     }
 }
 
@@ -430,9 +517,9 @@ Status sync_db(Db* db) {
     return status;
 }
 
-////////////////////////
-// Clean up functions //
-////////////////////////
+/// ***************************************************************************
+/// Clean up functions
+/// ***************************************************************************
 
 /**
  * @brief this frees a column and all of its dependancies

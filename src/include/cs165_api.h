@@ -82,9 +82,6 @@ typedef union DataPtr {
 /* } DataType; */
 
 struct Comparator;
-struct Table;
-//struct ColumnIndex;
-
 typedef struct Column {
     char name[MAX_SIZE_NAME];
     size_t* size_ptr;           // The size pointer

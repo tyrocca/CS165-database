@@ -106,7 +106,6 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
     new_table->primary_col_pos = 0;
 
     // allocate new columns
-    // TODO: is calloc necessary here
     new_table->columns = calloc(new_table->col_count, sizeof(Column));
     if (!new_table->columns) {
         ret_status->code = ERROR;

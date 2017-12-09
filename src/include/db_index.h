@@ -114,9 +114,9 @@ typedef struct SplitNode {
 } SplitNode;
 
 
-// ****************************************************************************
-// Helper Functions - used for debugging / general things
-// ****************************************************************************
+/// ***************************************************************************
+/// Helper Functions - used for debugging / general things
+/// ***************************************************************************
 
 
 void free_sorted_index(SortedIndex* sorted_index);
@@ -130,7 +130,7 @@ void print_sorted_index(SortedIndex* sorted_index);
 /// ***************************************************************************
 
 // Creation functions
-SortedIndex* create_unclustered_sorted_index();
+SortedIndex* create_unclustered_sorted_index(size_t alloc_space);
 SortedIndex* create_clustered_sorted_index(int* data);
 
 // Search function

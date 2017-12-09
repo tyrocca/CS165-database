@@ -4,6 +4,8 @@
 #include <string.h>
 #include "cs165_api.h"
 #include "db_index.h"
+// TODO: remove
+#include <assert.h>
 #define MAX_LINE_LEN 2048
 
 // This is used for the storage
@@ -72,6 +74,36 @@ int make_index_fname(char* db_name, char* table_name, char* col_name, char* file
 // LOADING FUNCTIONS //
 ///////////////////////
 
+void load_index(char* filename, Column* column) {
+    // if we have a sorted clusteted column we don't have to do anything as
+    // the data is already organized
+    if (column->index_type == SORTED && column->clustered) {
+        SortedIndex* sorted_index = create_clustered_sorted_index(column->data);
+        sorted_index->num_items = *column->size_ptr;
+        column->index = (void*) sorted_index;
+        printf("printing %s\n", filename);
+        print_sorted_index(sorted_index);
+        return;
+    } else if (column->index_type == SORTED) {
+        SortedIndex* sorted_index = create_unclustered_sorted_index(
+                column->table->table_length
+        );
+        sorted_index->num_items = *column->size_ptr;
+        // Read in the
+        FILE* index_file = fopen(filename, "rb");
+        fread(sorted_index->keys, sizeof(int),
+              sorted_index->num_items, index_file);
+        fread(sorted_index->col_positions, sizeof(size_t),
+              sorted_index->num_items, index_file);
+        fclose(index_file);
+        printf("printing %s\n", filename);
+        print_sorted_index(sorted_index);
+    } else {
+        assert("NOT IMPLEMENTED" == NULL);
+    }
+}
+
+
 /**
  * @brief This function takes in a loaded storage group and updates the status
  *
@@ -92,24 +124,25 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
     tbl_ptr->table_length = sg_ptr->count_3;
 
     // load the column file
-    StoredColumn* scolumns = malloc(sizeof(StoredColumn) * tbl_ptr->col_count);
+    /* StoredColumn* scolumns = malloc(sizeof(StoredColumn) * tbl_ptr->col_count); */
+    Column* columns = tbl_ptr->columns;
     char table_fname[MAX_SIZE_NAME * 2 + 8];
     make_table_fname(current_db->name, tbl_ptr->name, table_fname);
     FILE* table_file = fopen(table_fname, "rb");
-    if (table_file == NULL || scolumns == NULL) {
+    if (table_file == NULL || columns == NULL) {
         status->code = ERROR;
         return;
     }
-    fread(scolumns, sizeof(StoredColumn), tbl_ptr->col_count, table_file);
+    fread(columns, sizeof(Column), tbl_ptr->col_count, table_file);
 
     // load in the columns
     for (size_t i = 0; status->code != ERROR && i < tbl_ptr->col_count; i++) {
         char col_fname[MAX_SIZE_NAME * 3 + 8];
         Column* col = tbl_ptr->columns + i;
-        strcpy(col->name, scolumns[i].name);
         // load if data was allocated
         col->data = malloc(tbl_ptr->table_length * sizeof(int));
         col->size_ptr = &tbl_ptr->table_size;
+        col->table = tbl_ptr;
         if (col->data == NULL) {
             status->code = ERROR;
             status->msg_type = MEM_ALLOC_FAILED;
@@ -124,9 +157,26 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
             status->msg_type = MEM_ALLOC_FAILED;
             return;
         }
+        // load in all the data
         fread(col->data, sizeof(int), tbl_ptr->table_size, col_file);
+
+        // This is the
+        if (col->index_type != NONE) {
+            char index_fname[MAX_SIZE_NAME * 4 + 8];
+            make_index_fname(
+                current_db->name,
+                tbl_ptr->name,
+                col->name,
+                index_fname
+            );
+            if (col->clustered) {
+                tbl_ptr->primary_index = col;
+                tbl_ptr->primary_col_pos = i;
+            }
+            load_index(index_fname, col);
+        }
     }
-    free(scolumns);
+    /* free(scolumns); */
     fclose(table_file);
 }
 
@@ -224,6 +274,30 @@ StorageGroup store_db(Db* db_ptr) {
 }
 
 /**
+ * @brief Function that dumps an index into a binary file
+ *
+ * @param filename
+ * @param column
+ */
+void dump_index(char* filename, Column* column) {
+    // if we have a sorted clusteted column we don't have to do anything as
+    // the data is already organized
+    if (column->index_type == SORTED && column->clustered) {
+        return;
+    } else if (column->index_type == SORTED) {
+        SortedIndex* sorted_index = column->index;
+        FILE* index_file = fopen(filename, "wb");
+        fwrite(sorted_index->keys, sizeof(int),
+               sorted_index->num_items, index_file);
+        fwrite(sorted_index->col_positions, sizeof(size_t),
+               sorted_index->num_items, index_file);
+        fclose(index_file);
+    } else {
+        assert("NOT DONE - DUMP BTREE" == NULL);
+    }
+}
+
+/**
  * @brief This function takes a column and a file name and dumps the column
  *
  * @param fname
@@ -262,11 +336,15 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
     for (size_t i = 0; status.code != ERROR && i < table->col_count; i++) {
         char col_fname[MAX_SIZE_NAME * 3 + 8];
         Column* col = table->columns + i;
-        StoredColumn sc = store_column(col);
-        fwrite(&sc, sizeof(StoredColumn), 1, table_file);
+        fwrite(col, sizeof(Column), 1, table_file);
         // dump the column
         make_column_fname(db->name, table->name, col->name, col_fname);
         dump_column(col_fname, col, table->table_size, &status);
+        if (col->index_type != NONE && col->index != NULL) {
+            char index_fname[MAX_SIZE_NAME * 4 + 8];
+            make_index_fname(db->name, table->name, col->name, index_fname);
+            dump_index(index_fname, col);
+        }
     }
     fclose(table_file);
     return status;

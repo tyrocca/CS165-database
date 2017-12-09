@@ -223,7 +223,7 @@ void parse_create_index(char* create_arguments, Status* status) {
         column->index = create_clustered_sorted_index(column->data);
     } else {
         column->index_type = SORTED;
-        column->index = create_unclustered_sorted_index();
+        column->index = create_unclustered_sorted_index(0);
     }
 }
 

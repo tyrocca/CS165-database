@@ -30,10 +30,13 @@ SortedIndex* create_sorted_index() {
  *
  * @return Sorted index pointer
  */
-SortedIndex* create_unclustered_sorted_index() {
+SortedIndex* create_unclustered_sorted_index(size_t alloc_space) {
+    if (alloc_space == 0) {
+        alloc_space = DEFAULT_COLUMN_SIZE;
+    }
     SortedIndex* sorted_index = create_sorted_index();
     sorted_index->has_positions = true;
-    sorted_index->allocated_space = DEFAULT_COLUMN_SIZE;
+    sorted_index->allocated_space = alloc_space;
     sorted_index->keys = malloc(sizeof(int) * sorted_index->allocated_space);
     sorted_index->col_positions = malloc(
             sizeof(size_t) * sorted_index->allocated_space

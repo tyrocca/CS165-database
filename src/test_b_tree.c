@@ -13,7 +13,7 @@
 
 // MOVED THESE HERE
 void test_sorted_index() {
-    SortedIndex* sorted_index = create_unclustered_sorted_index();
+    SortedIndex* sorted_index = create_unclustered_sorted_index(0);
     srand(time(NULL));
     /* size_t pos = 0; */
     /* for (size_t i = 0; i < 20; i++) { */

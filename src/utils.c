@@ -9,7 +9,7 @@
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
-#define LOGS_ENABLED 1
+#define LOGS_ENABLED 0
 #define LOG LOGS_ENABLED
 #define LOG_ERR LOGS_ENABLED
 #define LOG_INFO LOGS_ENABLED

@@ -7,11 +7,12 @@ all: client server
 
 # C-compiler settings
 # TODO: CHANGE BACK
-# CC = gcc -std=c99
-CC = clang -std=c99 -ggdb3
-CFLAGS+=-fsanitize=undefined,address -fno-omit-frame-pointer
+CC = gcc -std=c99
+
+# CC = clang -std=c99 -ggdb3
+# CFLAGS+=-fsanitize=undefined,address -fno-omit-frame-pointer
 # RUN_OPTIONS=
-ASAN_OPTIONS=allocator_may_return_null=1
+# ASAN_OPTIONS=allocator_may_return_null=1
 # the version on my computer id annoying
 # CC = gcc-7 -std=c99 -g -ggdb3
 

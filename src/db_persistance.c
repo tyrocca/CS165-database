@@ -195,10 +195,13 @@ void load_index(char* filename, Column* column) {
         fread(sorted_index->col_positions, sizeof(size_t),
               sorted_index->num_items, index_file);
         fclose(index_file);
+        column->index = (void*) sorted_index;
+        return;
     } else {
         FILE* index_file = fopen(filename, "rb");
         column->index = load_btree(index_file);
         fclose(index_file);
+        return;
     }
 }
 

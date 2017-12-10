@@ -9,12 +9,12 @@ all: client server
 # TODO: CHANGE BACK
 CC = gcc -std=c99
 
+################# UNCOMMENT
 # CC = clang -std=c99 -ggdb3
 # CFLAGS+=-fsanitize=undefined,address -fno-omit-frame-pointer
-# RUN_OPTIONS=
+# # RUN_OPTIONS=
 # ASAN_OPTIONS=allocator_may_return_null=1
-# the version on my computer id annoying
-# CC = gcc-7 -std=c99 -g -ggdb3
+############################
 
 # Default optimization level
 O ?= 00

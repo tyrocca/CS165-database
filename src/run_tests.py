@@ -18,7 +18,7 @@ import time
 # @param large
 #
 # @return
-def run_tests(test_nums=[], milestone=5, large=False):
+def run_tests(test_nums=[], milestone=3, large=True):
     if not test_nums:
         os.system("make clean > /dev/null")
         test_nums = {

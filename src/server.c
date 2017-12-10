@@ -270,7 +270,8 @@ void print_to_client(
  * This is the execution routine after a client has connected.
  * It will continually listen for messages from the client and execute queries.
  **/
-void handle_client(int client_socket) {
+
+void handle_client(int client_socket, int* exit_server) {
     int done = 0;
     int length = 0;
 
@@ -332,6 +333,7 @@ void handle_client(int client_socket) {
                 case SHUTDOWN_SERVER:
                     // TODO: See if db op should be used
                     done = 1;
+                    *exit_server = 1;
                     break;
                 case OK_WAIT_FOR_RESPONSE:
                     print_op = execute_DbOperator(query, &internal_status);
@@ -463,11 +465,14 @@ int main(void) {
         db_startup();
     }
 
-    if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
-        log_err("L%d: Failed to accept a new connection.\n", __LINE__);
-        exit(1);
+    int exit_server = 0;
+    while (exit_server != 1) {
+        if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
+            log_err("L%d: Failed to accept a new connection.\n", __LINE__);
+            exit(1);
+        }
+        handle_client(client_socket, &exit_server);
     }
-    handle_client(client_socket);
     // TODO: determine correct location for shutdown
     shutdown_server();
     return 0;

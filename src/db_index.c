@@ -65,8 +65,8 @@ void increase_sorted_index(SortedIndex* sorted_index) {
         );
         // realloc positions if necessary
         if (sorted_index->has_positions) {
-            sorted_index->keys = realloc(
-                sorted_index->keys,
+            sorted_index->col_positions = realloc(
+                sorted_index->col_positions,
                 sizeof(size_t) * sorted_index->allocated_space
             );
         }

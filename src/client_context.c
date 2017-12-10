@@ -14,12 +14,14 @@
  * @return
  */
 Result* get_result(ClientContext* context, const char* result_name, Status* status) {
-    // this try to find matching column (speed improvements here)
-    for (int i = 0; i < context->chandles_in_use; i++) {
-        if(strcmp(context->chandle_table[i].name, result_name) == 0) {
-            status->code = OK;
-            status->msg = "Result Found";
-            return context->chandle_table[i].generalized_column.column_pointer.result;
+    if (result_name != NULL) {
+        // this try to find matching column (speed improvements here)
+        for (int i = 0; i < context->chandles_in_use; i++) {
+            if(strcmp(context->chandle_table[i].name, result_name) == 0) {
+                status->code = OK;
+                status->msg = "Result Found";
+                return context->chandle_table[i].generalized_column.column_pointer.result;
+            }
         }
     }
     // if it didn't return we know that we had an error

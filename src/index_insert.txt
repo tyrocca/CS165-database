@@ -16,20 +16,15 @@ relational_insert(awesomebase.grades,107,80,75,95,93,1)
 relational_insert(awesomebase.grades,92,75,82,90,85,2)
 relational_insert(awesomebase.grades,110,95,90,100,95,3)
 relational_insert(awesomebase.grades,88,70,75,85,95,4)
-shutdown
-
--- create(db,"db1")
--- create(tbl,"tbl1",db1,1)
--- create(col,"col1",db1.tbl1)
--- create(idx, db1.tbl1.col1, btree, clustered)
--- load("../project_tests_1M/data1.csv")
--- relational_insert(db1.tbl1,-1)
--- relational_insert(db1.tbl1,-2)
--- relational_insert(db1.tbl1,-3)
--- relational_insert(db1.tbl1,-4)
--- relational_insert(db1.tbl1,-5)
--- relational_insert(db1.tbl1,-6)
--- relational_insert(db1.tbl1,-7)
--- relational_insert(db1.tbl1,-8)
--- relational_insert(db1.tbl1,-9)
--- relational_insert(db1.tbl1,-10)
+--
+--
+-- positions
+pos_1=select(awesomebase.grades.project,90,100)
+pos_2=select(awesomebase.grades.project,100, null)
+--
+--
+-- values
+vals_1=fetch(awesomebase.grades.project, pos_1)
+vals_2=fetch(awesomebase.grades.project, pos_2)
+--
+join1,join2=join(vals_1,pos_1,vals_2,pos_2,hash)

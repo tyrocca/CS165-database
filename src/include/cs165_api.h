@@ -243,6 +243,8 @@ typedef enum OperatorType {
     INSERT,
     SELECT,
     SHARED_SCAN,
+    HASH_JOIN,
+    NESTED_LOOP_JOIN,
     SUM,
     AVERAGE,
     MIN,
@@ -254,6 +256,7 @@ typedef enum OperatorType {
     OPEN,
     SHUTDOWN
 } OperatorType;
+
 /*
  * necessary fields for insertion
  */
@@ -293,6 +296,16 @@ typedef struct CreateOperator {
     char* column_name[MAX_SIZE_NAME];
 } CreateOperator;
 
+// struct for Joins
+typedef struct JoinOperator {
+    char handle1[HANDLE_MAX_SIZE];
+    char handle2[HANDLE_MAX_SIZE];
+    Result* col1_values;
+    Result* col1_positions;
+    Result* col2_values;
+    Result* col2_positions;
+} JoinOperator;
+
 /**
  * @brief This operator is used for the math functions.
  * we will have either 1 or 2 handles and either 1 or two
@@ -324,6 +337,7 @@ typedef union OperatorFields {
     PrintOperator print_operator;
     MathOperator math_operator;
     SharedScanOperator shared_operator;
+    JoinOperator join_operator;
 } OperatorFields;
 
 /*

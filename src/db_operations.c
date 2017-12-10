@@ -11,6 +11,10 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
+/// ***************************************************************************
+/// Helper Functions
+/// ***************************************************************************
+
 /**
  * @brief This function takes in a data_type and returns the size of the
  * data type (useful for malloc)
@@ -77,6 +81,11 @@ long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
             return 0;
     }
 }
+
+
+/// ***************************************************************************
+/// Insertion Functions
+/// ***************************************************************************
 
 /**
  * @brief Function that inserts a value into the table
@@ -218,6 +227,10 @@ char* process_insert(InsertOperator insert_op, Status* status) {
     return "Success! Values inserted.";
 }
 
+/// ***************************************************************************
+/// Opening Functions
+/// ***************************************************************************
+
 /**
  * @brief This function opens a file and loads it into the system
  *
@@ -233,6 +246,10 @@ char* process_open(OpenOperator open_op, Status* status) {
     (void) status;
     return NULL;
 }
+
+/// ***************************************************************************
+/// Selection Functions
+/// ***************************************************************************
 
 /**
  * @brief Function that returns a result column given an array
@@ -442,6 +459,11 @@ void process_select(SelectOperator* select_op, ClientContext* context, Status* s
     status->msg_type = OK_DONE;
 }
 
+
+/// ***************************************************************************
+/// Fetching Functions
+/// ***************************************************************************
+
 /**
  * @brief Function that given a fetch command returns the values. This
  * function takes in a database column and returns a column of ints
@@ -467,9 +489,10 @@ void process_fetch(FetchOperator* fetch_op, ClientContext*context, Status* statu
     status->msg_type = OK_DONE;
 }
 
-//////////////////
-//  Aggregrates //
-//////////////////
+
+/// ***************************************************************************
+/// Aggregate & Statistic Functions
+/// ***************************************************************************
 
 /**
  * @brief Function that sums up a column
@@ -684,6 +707,9 @@ void process_col_op(
     status->msg_type = OK_DONE;
 }
 
+/// ***************************************************************************
+/// Min & Max Functions
+/// ***************************************************************************
 
 /**
  * @brief function that calculates the max
@@ -992,6 +1018,92 @@ void get_index_and_range(
     status->msg_type = OK_DONE;
 }
 
+/// ***************************************************************************
+/// Join Functions
+/// ***************************************************************************
+
+/**
+ * @brief This function performs a hash join of two columns
+ *
+ * @param join_op - the struct containing the join stuff
+ * @param context - the client context (for returning)
+ * @param status - the status;
+ */
+void process_hash_loop_join(
+    JoinOperator* join_op,
+    ClientContext* context,
+    Status* status
+) {
+    (void) join_op;
+    (void) context;
+    status->msg_type = OK_DONE;
+    return;
+}
+
+/**
+ * @brief This function performs a simple loop join of two columns
+ *
+ * @param join_op - the struct containing the join stuff
+ * @param context - the client context (for returning)
+ * @param status - the status;
+ */
+void process_nested_loop_join(
+    JoinOperator* join_op,
+    ClientContext* context,
+    Status* status
+) {
+    (void) join_op;
+    (void) context;
+
+    // this should be true
+    assert(join_op->col1_values->num_tuples == join_op->col1_positions->num_tuples);
+    size_t num_left = join_op->col1_values->num_tuples;
+    /* int* left_values = (int*) join_op->col1_values->payload; */
+    size_t* left_pos = (size_t*) join_op->col1_positions->payload;
+
+
+    // this should also hold true
+    assert(join_op->col2_values->num_tuples == join_op->col2_positions->num_tuples);
+    size_t num_right = join_op->col2_values->num_tuples;
+    /* int* right_values = (int*) join_op->col2_values->payload; */
+    size_t* right_pos = (size_t*) join_op->col2_positions->payload;
+
+    lp=LeftEntriesThatFitInOnePage
+    rp=RightEntriesThatFitInOnePage
+    L= number of values in L column
+    R= number of values in R column
+
+    new resL[]; new resR[]; k=0
+
+
+    for (size_t i = 0; i < num_left; i += lp) {
+        for (size_t j = 0; j < num_right; i += rp) {
+            for (size_t r = i; r < i + lp; r++) {
+                for (size_t m = j; m < j + rp; m++) {
+                    if (left_pos[r] == right_pos[m]) {
+                        result_left[k] = r;
+                        result_right[k++] = m;
+                    }
+
+                }
+            }
+        }
+    }
+
+    for (i=0;i<L;i=i+lp)
+            for (j=0;j<R;j=j+rp)
+                for (r=i;r<i+lp;r++)
+                    for (m=j;m<j+rp;m++)
+                        if L[r]==R[m]
+                            resL[k]=r
+                                resR[k++]=m
+                                status->msg_type = OK_DONE;
+    return;
+}
+
+/// ***************************************************************************
+/// Main Execution Function
+/// ***************************************************************************
 
 /**
  * execute_DbOperator takes as input the DbOperator and executes the query.
@@ -1034,6 +1146,20 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
                 status->msg_type = OK_DONE;
                 return NULL;
             }
+            break;
+        case HASH_JOIN:
+            process_hash_loop_join(
+                &query->operator_fields.join_operator,
+                query->context,
+                status
+            );
+            break;
+        case NESTED_LOOP_JOIN:
+            process_nested_loop_join(
+                &query->operator_fields.join_operator,
+                query->context,
+                status
+            );
             break;
         case SHARED_SCAN:
             process_shared_scans(

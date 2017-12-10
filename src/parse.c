@@ -502,6 +502,65 @@ DbOperator* parse_insert(char* query_command, Status* status) {
 }
 
 /**
+ * @brief This function parses the join command
+ *
+ *  <vec_pos1_out>,<vec_pos2_out>=join(<vec_val1>,<vec_pos1>,
+ *                                     <vec_val2>,<vec_pos2>,
+ *                                     [hash,nested-loop,...])
+ *
+ * @param query_command - the command to process
+ * @param context - the context for the operation
+ * @param status - status
+ *
+ * @return database operator for joining
+ */
+DbOperator* parse_join(char* query_command, ClientContext* context, Status* status) {
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+
+        // set the first join column
+        char* val_col1 = next_token(command_index, &status->msg_type);
+        dbo->operator_fields.join_operator.col1_values =
+                get_result(context, val_col1, status);
+        char* pos_col1 = next_token(command_index, &status->msg_type);
+        dbo->operator_fields.join_operator.col1_positions =
+                get_result(context, pos_col1, status);
+
+        // set the second join column
+        char* val_col2 = next_token(command_index, &status->msg_type);
+        dbo->operator_fields.join_operator.col2_values =
+                get_result(context, val_col2, status);
+        char* pos_col2 = next_token(command_index, &status->msg_type);
+        dbo->operator_fields.join_operator.col2_positions =
+                get_result(context, pos_col2, status);
+
+        // make sure the options are valid
+        if (status->code != OK || dbo->operator_fields.join_operator.col1_values == NULL
+                || dbo->operator_fields.join_operator.col1_positions == NULL
+                || dbo->operator_fields.join_operator.col1_values == NULL
+                || dbo->operator_fields.join_operator.col1_positions == NULL
+        ) {
+                status->code = ERROR;
+                status->msg_type = INCORRECT_FORMAT;
+                status->msg = "Wrong format for joining";
+                free(dbo);
+                return NULL;
+        }
+
+        // set the join type
+        dbo->type = strncmp(*command_index, "hash", 4) == 0 ? HASH_JOIN : NESTED_LOOP_JOIN;
+        return dbo;
+    } else {
+        status->msg_type = UNKNOWN_COMMAND;
+        status->code = ERROR;
+        return NULL;
+    }
+
+}
+
+/**
  * @brief This function loads in a table
  *
  * @param query_command
@@ -933,6 +992,13 @@ DbOperator* parse_command(
         dbo = parse_fetch(query_command, context, internal_status);
         if (dbo) {
             strcpy(dbo->operator_fields.fetch_operator.handle, handle);
+        }
+    } else if (strncmp(query_command, "join", 4) == 0) {
+        query_command += 4;
+        dbo = parse_join(query_command, context, internal_status);
+        if (dbo) {
+            strcpy(dbo->operator_fields.math_operator.handle1, handle);
+            strcpy(dbo->operator_fields.join_operator.handle2, handle_2);
         }
     } else if (strncmp(query_command, "sum", 3) == 0) {
         query_command += 3;

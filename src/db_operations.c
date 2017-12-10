@@ -1067,20 +1067,16 @@ void process_nested_loop_join(
     size_t* right_pos = (size_t*) join_op->col2_positions->payload;
 
     /* rp=RightEntriesThatFitInOnePage */
-    size_t rp = PAGE_SZ / sizeof(size_t);
     /* lp=LeftEntriesThatFitInOnePage */
+    size_t rp = PAGE_SZ / sizeof(size_t);
     size_t lp = PAGE_SZ / sizeof(size_t);
-    /* size_t rp = 4; */
-    /* size_t lp = 8; */
 
+    // result counter
     size_t num_results = 0;
-
     size_t capacity = PAGE_SZ;
     size_t* result_left = malloc(capacity * sizeof(size_t));
     size_t* result_right = malloc(capacity * sizeof(size_t));
 
-    /* for (size_t r = i; r < MIN(i + lp, num_left); r++) { */
-    /* for (size_t m = j; m < MIN(j + rp, num_right); m++) { */
     for (size_t i = 0; i < num_left; i += lp) {
         for (size_t j = 0; j < num_right; j += rp) {
             for (size_t r = i; r < i + lp; r++) {
@@ -1099,7 +1095,6 @@ void process_nested_loop_join(
                             result_right = realloc(result_right,
                                                    capacity * sizeof(size_t));
                         }
-                        printf("Num Results: %zu / %zu \n", num_results, capacity);
                         result_left[num_results] = left_pos[r];
                         result_right[num_results++] = right_pos[m];
                     }
@@ -1114,8 +1109,13 @@ void process_nested_loop_join(
     Result* left_result_column = malloc(sizeof(Result));
     left_result_column->num_tuples = num_results;
     left_result_column->capacity = num_results;
-    left_result_column->payload = realloc(result_left,
-                                          num_results * sizeof(size_t));
+    if (num_results == 0) {
+        free(result_left);
+        left_result_column->payload = NULL;
+    } else {
+        left_result_column->payload = realloc(result_left,
+                                              num_results * sizeof(size_t));
+    }
     left_result_column->data_type = INDEX;
     GeneralizedColumnHandle* left_gcol = add_result_column(context, join_op->handle1);
     left_gcol->generalized_column.column_pointer.result = left_result_column;
@@ -1125,8 +1125,13 @@ void process_nested_loop_join(
     Result* right_result_column = malloc(sizeof(Result));
     right_result_column->num_tuples = num_results;
     right_result_column->capacity = num_results;
-    right_result_column->payload = realloc(result_right,
-                                           num_results * sizeof(size_t));
+    if (num_results == 0) {
+        free(result_right);
+        right_result_column->payload = NULL;
+    } else {
+        right_result_column->payload = realloc(result_right,
+                                               num_results * sizeof(size_t));
+    }
     right_result_column->data_type = INDEX;
     GeneralizedColumnHandle* right_gcol = add_result_column(context, join_op->handle2);
     right_gcol->generalized_column.column_pointer.result = right_result_column;

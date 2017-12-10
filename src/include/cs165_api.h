@@ -33,7 +33,10 @@ SOFTWARE.
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
-#define DEFAULT_READ_SIZE 4096
+#define PAGE_SZ 4096
+#define DEFAULT_READ_SIZE PAGE_SZ
+
+#define DEFAULT_COLUMN_SIZE PAGE_SZ
 
 // MACROS
 // We are using an array

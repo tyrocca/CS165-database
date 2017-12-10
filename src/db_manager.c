@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 #define DEFAULT_TABLE_SIZE 8
-#define DEFAULT_COLUMN_SIZE 4096
 
 // In this class, there will always be only one active database at a time
 Db* current_db = NULL;

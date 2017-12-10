@@ -1030,7 +1030,7 @@ void get_index_and_range(
  * @param context - the client context (for returning)
  * @param status - the status;
  */
-void process_hash_loop_join(
+void process_hash_join(
     JoinOperator* join_op,
     ClientContext* context,
     Status* status
@@ -1054,40 +1054,46 @@ void process_nested_loop_join(
     Status* status
 ) {
     // this should be true
-    assert(join_op->col1_values->num_tuples == join_op->col1_positions->num_tuples);
-    size_t num_left = join_op->col1_positions->num_tuples;
-    /* int* right_values = (int*) join_op->col2_values->payload; */
+    int* left_values = (int*) join_op->col1_values->payload;
     size_t* left_pos = (size_t*) join_op->col1_positions->payload;
+    assert(join_op->col1_values->num_tuples == join_op->col1_positions->num_tuples);
+    size_t num_left = join_op->col1_values->num_tuples;
 
 
     // this should also hold true
-    assert(join_op->col2_values->num_tuples == join_op->col2_positions->num_tuples);
-    size_t num_right = join_op->col1_positions->num_tuples;
-    /* int* right_values = (int*) join_op->col2_values->payload; */
+    int* right_values = (int*) join_op->col2_values->payload;
     size_t* right_pos = (size_t*) join_op->col2_positions->payload;
+    assert(join_op->col2_values->num_tuples == join_op->col2_positions->num_tuples);
+    size_t num_right = join_op->col2_values->num_tuples;
 
     /* rp=RightEntriesThatFitInOnePage */
     /* lp=LeftEntriesThatFitInOnePage */
-    size_t rp = PAGE_SZ / sizeof(size_t);
-    size_t lp = PAGE_SZ / sizeof(size_t);
+    // TODO: we should calculate how much space we can actually fit
+    size_t rp = PAGE_SZ / sizeof(int);
+    size_t lp = PAGE_SZ / sizeof(int);
 
     // result counter
     size_t num_results = 0;
-    size_t capacity = PAGE_SZ;
+    size_t capacity = PAGE_SZ;  // we just picked this as our scaling var
     size_t* result_left = malloc(capacity * sizeof(size_t));
     size_t* result_right = malloc(capacity * sizeof(size_t));
 
-    for (size_t i = 0; i < num_left; i += lp) {
-        for (size_t j = 0; j < num_right; j += rp) {
-            for (size_t r = i; r < i + lp; r++) {
-                if (r >= num_left) {
+    // loop through page sized chunks of left values
+    for (size_t outer_l = 0; outer_l < num_left; outer_l += lp) {
+        // loop through page sized chunks of right values
+        for (size_t outer_r = 0; outer_r < num_right; outer_r += rp) {
+            // loop through left values within a page
+            for (size_t l_idx = outer_l; l_idx < outer_l + lp; l_idx++) {
+                // don't exceed bound
+                if (l_idx >= num_left) {
                     break;
                 }
-                for (size_t m = j; m < j + rp; m++) {
-                    if (m >= num_right) {
+                // loop through right values witin a page
+                for (size_t r_idx = outer_r; r_idx < outer_r + rp; r_idx++) {
+                    // don't exceed bound
+                    if (r_idx >= num_right) {
                         break;
-                    }
-                    if (left_pos[r] == right_pos[m]) {
+                    } else if (left_values[l_idx] == right_values[r_idx]) {
                         if (num_results == capacity) {
                             capacity *= 2;
                             result_left = realloc(result_left,
@@ -1095,8 +1101,8 @@ void process_nested_loop_join(
                             result_right = realloc(result_right,
                                                    capacity * sizeof(size_t));
                         }
-                        result_left[num_results] = left_pos[r];
-                        result_right[num_results++] = right_pos[m];
+                        result_left[num_results] = left_pos[l_idx];
+                        result_right[num_results++] = right_pos[r_idx];
                     }
 
                 }
@@ -1188,7 +1194,7 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
             }
             break;
         case HASH_JOIN:
-            process_hash_loop_join(
+            process_hash_join(
                 &query->operator_fields.join_operator,
                 query->context,
                 status

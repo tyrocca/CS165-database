@@ -5,6 +5,7 @@
 #include "client_context.h"
 #include "db_index.h"
 #include "cs165_api.h"
+#include "extendible_hash_table.h"
 #include <stdio.h>
 
 
@@ -1105,6 +1106,87 @@ void partition_data(
 }
 
 /**
+ * @brief This function increases the size of a result array
+ *      TODO: make it so the function can increase using an actual
+ *      result from the database
+ *
+ * @param result
+ */
+void increase_result_array(Result *result) {
+    result->capacity *= 2;
+    result->payload = realloc(result->payload, sizeof(size_t) * result->capacity);
+}
+
+// TODO unused
+void add_to_results(Result* result, size_t value) {
+    if (result->num_tuples == result->capacity) {
+        increase_result_array(result);
+    }
+    // add the value to the array
+    ((size_t*)result->payload)[result->num_tuples++] = value;
+}
+
+/**
+ * @brief Function that partitions the dataset
+ *
+ * @param partition
+ */
+
+void process_partition(JoinPartion* partition, Result* l_res, Result* r_res) {
+    // don't do anything if nothing is in the partition
+    if (partition->l_sz == 0 || partition->r_sz == 0) {
+        return;
+    }
+    ExtHashTable* ht = create_ext_hash_table();
+    size_t small_size;
+    int* big_keys = NULL;
+    size_t* big_pos = NULL;
+    Result* big_res = NULL;
+    size_t big_size;
+    int* small_keys = NULL;
+    size_t* small_pos = NULL;
+    Result* small_res = NULL;
+
+    // set the side
+    if (partition->l_sz <= partition->r_sz) {
+        // when the left side is smaller
+        small_size = partition->l_sz;
+        small_keys = partition->l_join_keys;
+        small_pos = partition->l_join_vals;
+        small_res = l_res;
+        big_size = partition->r_sz;
+        big_keys = partition->r_join_keys;
+        big_pos = partition->r_join_vals;
+        big_res = r_res;
+    } else {
+        // when the right_side is smaller side is bigger
+        small_size = partition->r_sz;
+        small_keys = partition->r_join_keys;
+        small_pos = partition->r_join_vals;
+        small_res = r_res;
+        big_size = partition->l_sz;
+        big_keys = partition->l_join_keys;
+        big_pos = partition->l_join_vals;
+        big_res = l_res;
+    }
+
+    // load smaller side into the hashtable
+    for (size_t i = 0; i < small_size; i++) {
+        ext_hash_table_put(ht, small_keys[i], small_pos[i]);
+    }
+    // now query it
+    for (size_t i = 0; i < small_size; i++) {
+        HashResults* hres = ext_hash_func_get(ht, big_keys[i]);
+        for (size_t res_idx = 0; res_idx < hres->num_found; res_idx++) {
+            add_to_results(big_res, big_pos[i]);
+            add_to_results(small_res, hres->hb_results[res_idx]);
+        }
+        free_hash_result(hres);
+    }
+    free_ext_hash_table(ht);
+}
+
+/**
  * @brief This function performs a hash join of two columns
  *
  * @param join_op - the struct containing the join stuff
@@ -1131,7 +1213,6 @@ void process_hash_join(
             join_op->col2_positions->num_tuples);
     size_t num_right = join_op->col2_values->num_tuples;
 
-    /* JoinPartion partitions[NUM_PARTITIONS]; */
     JoinPartion* partitions = malloc(NUM_PARTITIONS * sizeof(JoinPartion));
     init_partitions(partitions);
     // partition the data
@@ -1145,16 +1226,45 @@ void process_hash_join(
         num_right
     );
 
+    // create the results
+    Result* left_result_column = malloc(sizeof(Result));
+    left_result_column->data_type = INDEX;
+    left_result_column->num_tuples = 0;
+    left_result_column->capacity = DEFAULT_COLUMN_SIZE;
+    left_result_column->payload =
+            malloc(left_result_column->capacity * sizeof(size_t));
+    // create the column
+    GeneralizedColumnHandle* left_gcol = add_result_column(context,
+                                                           join_op->handle1);
+    left_gcol->generalized_column.column_pointer.result = left_result_column;
+    left_gcol->generalized_column.column_type = RESULT;
+
+    // create the right result struct
+    Result* right_result_column = malloc(sizeof(Result));
+    right_result_column->data_type = INDEX;
+    right_result_column->num_tuples = 0;
+    right_result_column->capacity = DEFAULT_COLUMN_SIZE;
+    right_result_column->payload =
+            malloc(right_result_column->capacity * sizeof(size_t));
+    GeneralizedColumnHandle* right_gcol = add_result_column(context,
+                                                            join_op->handle2);
+    // create the right result column
+    right_gcol->generalized_column.column_pointer.result = right_result_column;
+    right_gcol->generalized_column.column_type = RESULT;
+
     // this is the goal
     for (size_t i = 0; i < NUM_PARTITIONS; i++) {
         // PARTITION and join!!
+        process_partition(
+            &partitions[i],
+            left_result_column,
+            right_result_column
+        );
         free(partitions[i].l_join_keys);
         free(partitions[i].l_join_vals);
         free(partitions[i].r_join_keys);
         free(partitions[i].r_join_vals);
     }
-    /* for (int i = 0; i < NUM_PARTITIONS; i++) { */
-    /* } */
     free(partitions);
     // partition data
     status->msg_type = OK_DONE;

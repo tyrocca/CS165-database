@@ -564,27 +564,6 @@ void dump_tree(BPTNode* node, char* fname) {
 /// ***************************************************************************
 
 /**
- * @brief This function increases the size of a result array
- *      TODO: make it so the function can increase using an actual
- *      result from the database
- *
- * @param result
- */
-void increase_result_array(Result *result) {
-    result->capacity *= 2;
-    result->payload = realloc(result->payload, sizeof(size_t) * result->capacity);
-}
-
-// TODO unused
-void add_to_results(Result* result, size_t value) {
-    if (result->num_tuples == result->capacity) {
-        increase_result_array(result);
-    }
-    // add the value to the array
-    ((size_t*)result->payload)[result->num_tuples++] = value;
-}
-
-/**
  * @brief This function inserts into our result array using memcopy
  *
  * @param result - object to add to

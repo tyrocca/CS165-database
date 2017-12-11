@@ -34,6 +34,8 @@ typedef struct HashResults {
 // creation functions
 ExtHashTable* create_ext_hash_table();
 void free_ext_hash_table(ExtHashTable* ext_ht);
+
+// setters
 void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value);
 
 // result function

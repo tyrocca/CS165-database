@@ -1079,7 +1079,8 @@ void partition_data(
     // to partition data we will just
     // make join partitions - these will be used to join the data
     for (size_t i = 0; i < num_left; i++) {
-        JoinPartion* partition = &partitions[left_vals[i] % NUM_PARTITIONS];
+        unsigned partition_loc = ((unsigned int) left_vals[i]) % NUM_PARTITIONS;
+        JoinPartion* partition = &partitions[partition_loc];
         if (partition->l_sz == partition->l_alloc) {
             partition->l_alloc *= 2;
             partition->l_join_keys = realloc(partition->l_join_keys,
@@ -1092,7 +1093,8 @@ void partition_data(
 
     }
     for (size_t i = 0; i < num_right; i++) {
-        JoinPartion* partition = &partitions[right_vals[i] % NUM_PARTITIONS];
+        unsigned partition_loc = ((unsigned int) right_vals[i]) % NUM_PARTITIONS;
+        JoinPartion* partition = &partitions[partition_loc];
         if (partition->r_sz == partition->r_alloc) {
             partition->r_alloc *= 2;
             partition->r_join_keys = realloc(partition->r_join_keys,

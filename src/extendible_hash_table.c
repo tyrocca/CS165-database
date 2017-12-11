@@ -16,7 +16,7 @@
  * @return result
  */
 HashResults* create_hash_result() {
-    HashResults* hres = malloc(sizeof(hres));
+    HashResults* hres = malloc(sizeof(HashResults));
     hres->num_found = 0;
     hres->hr_capacity = MAX_BUCKET_SIZE;
     hres->hb_results = malloc(hres->hr_capacity * sizeof(size_t));
@@ -62,15 +62,6 @@ ExtHashBucket* create_hash_bucket() {
     hb->hb_size = hb->local_depth = 0;
     return hb;
 }
-
-/**
- * @brief Function that frees a hash bucket
- *
- * @param hb - bucket to free
- */
-/* void free_hash_bucket(ExtHashBucket* hb) { */
-/*     free(hb); */
-/* } */
 
 /**
  * @brief Function that returns whether we have a full bucket
@@ -143,7 +134,20 @@ ExtHashTable* create_ext_hash_table() {
  */
 void free_ext_hash_table(ExtHashTable* ext_ht) {
     while (ext_ht->num_exb-- > 0) {
-        free(ext_ht->hash_buckets[ext_ht->num_exb]);
+        // get the bucket
+        ExtHashBucket* bucket = ext_ht->hash_buckets[ext_ht->num_exb];
+        if (bucket == NULL) {
+            continue;
+        }
+        // set all other buckets that match to be null
+        for (size_t i = 0; i < ext_ht->num_exb; i++) {
+            if (ext_ht->hash_buckets[i] == bucket) {
+                ext_ht->hash_buckets[i] = NULL;
+            }
+        }
+        // then free the bucket
+        free(bucket);
+        ext_ht->hash_buckets[ext_ht->num_exb] = NULL;
     }
     free(ext_ht->hash_buckets);
     free(ext_ht);
@@ -185,9 +189,10 @@ unsigned int get_hash_bucket_idx(ExtHashTable* ext_ht, int key) {
  * @return ExtHashBucket* - bucket that is related to the function
  */
 ExtHashBucket* get_ext_hash_bucket(ExtHashTable* ext_ht, int key) {
-    return ext_ht->hash_buckets[get_hash_bucket_idx(ext_ht, key)];
+    unsigned int idx = get_hash_bucket_idx(ext_ht, key);
+    return ext_ht->hash_buckets[idx];
+    /* return ext_ht->hash_buckets[get_hash_bucket_idx(ext_ht, key)]; */
 }
-
 
 
 /**
@@ -197,6 +202,7 @@ ExtHashBucket* get_ext_hash_bucket(ExtHashTable* ext_ht, int key) {
  * @param key
  * @param value
  */
+size_t recurse_limit = 0;
 void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value) {
     unsigned int hash_idx = get_hash_bucket_idx(ext_ht, key);
     ExtHashBucket* ext_hb = ext_ht->hash_buckets[hash_idx];
@@ -205,6 +211,7 @@ void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value) {
     // the size of the table
     if (is_full_bucket(ext_hb) == false) {
         hb_put(ext_hb, key, value);
+        recurse_limit = 0;
         return;
     } else if (ext_hb->local_depth == ext_ht->global_depth) {
         // if the table is full and the local depth equals the global
@@ -222,13 +229,8 @@ void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value) {
         memcpy(&ext_ht->hash_buckets[ext_ht->num_exb],
                &ext_ht->hash_buckets[0],
                ext_ht->num_exb * sizeof(ExtHashBucket*));
-        /* for (size_t i = 0; i < ext_ht->num_exb; i++) { */
-        /*     ext_ht->hash_buckets[i + ext_ht->num_exb] = ext_ht->hash_buckets[i]; */
-        /* } */
         // now double the size
         ext_ht->num_exb *= 2;
-        /* ext_hash_table_put(ext_ht, key, value); */
-        /* return; */
     }
 
     // we have now resized our shit
@@ -257,6 +259,11 @@ void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value) {
         new_bucket->local_depth = ext_hb->local_depth;
         ext_ht->hash_buckets[hash_idx + (ext_ht->num_exb / 2)] = new_bucket;
         // after redistributing, call the function again
+        if (recurse_limit++ == 10) {
+            // this means there was a terrible error and we tried to
+            // rebalance the nodes 10 times
+            exit(-1);
+        }
         ext_hash_table_put(ext_ht, key, value);
         return;
     } else {
@@ -277,20 +284,62 @@ HashResults* ext_hash_func_get(ExtHashTable* ext_ht, int key) {
     return hb_get(get_ext_hash_bucket(ext_ht, key), key);
 }
 
-/* void add_ext_hash_bucket(ExtHashTable* ext_ht) { */
-/*     if (hres->num_found == hres->hr_capacity) { */
-/*         hres->hr_capacity *= 2;  // double the size */
-/*         hres->hb_results = realloc(hres->hb_results, */
-/*                                    hres->hr_capacity * sizeof(size_t)); */
-/*     } */
-/*     hres->hb_results[hres->num_found++] = result; */
-/* } */
 
-#if 1
+/// ***************************************************************************
+/// Testing Functions
+/// ***************************************************************************
+
+#if 0
+void print_bucket(ExtHashBucket* bucket) {
+    for (size_t i = 0; i < bucket->hb_size; i++) {
+        printf("\t(key: %d, value: %zu)\n",
+                bucket->hb_keys[i],
+                bucket->hb_values[i]);
+    }
+}
+void print_ext_hash_table(ExtHashTable* ht) {
+    size_t num_buckets = 0;
+    ExtHashBucket* buckets[ht->num_exb];
+    for (size_t i = 0; i < ht->num_exb; i++) {
+        bool found = false;
+        printf("Bucket %zu\n", i);
+        ExtHashBucket* bucket = ht->hash_buckets[i];
+        for (size_t j = 0; j < num_buckets; j++) {
+            if (buckets[j] == bucket) {
+                found = true;
+                printf("Resused bucket\n");
+                break;
+            }
+        }
+        if (found == false) {
+            buckets[num_buckets++] = bucket;
+        }
+        print_bucket(bucket);
+    }
+}
+
+void print_hash_results(ExtHashTable* ht, int key) {
+    printf("Results for key %d:\n", key);
+    HashResults* results = ext_hash_func_get(ht, key);
+    for (size_t i = 0; i < results->num_found; i++) {
+        printf("\t%zu\n", results->hb_results[i]);
+    }
+    free_hash_result(results);
+}
+
 int main(void) {
     ExtHashTable* ht = create_ext_hash_table();
     srand(time(NULL));
-    int random = rand();
+    for (int value = 0; value < 10; value++) {
+        /* int key = rand(); */
+        int key = value - 1;
+        printf("\n Inserting %d, at %d\n", key, value);
+        ext_hash_table_put(ht, key, value);
+    }
+    ext_hash_table_put(ht, 3, 6);
+    print_ext_hash_table(ht);
+    print_hash_results(ht, 3);
+    free_ext_hash_table(ht);
     return 0;
 }
 #endif

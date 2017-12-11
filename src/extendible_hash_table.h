@@ -1,5 +1,10 @@
 #include <stdlib.h>
-#define MAX_BUCKET_SIZE 2
+
+// calculation for the bucket size - we want it to fit in a page
+/* 4 * n + 8 * n + 16 */
+/* 12n + 16 = 4096 */
+/* #define MAX_BUCKET_SIZE 340 */
+#define MAX_BUCKET_SIZE 340
 #define NUM_BUCKET_INIT 64
 
 typedef struct ExtHashBucket {
@@ -11,7 +16,6 @@ typedef struct ExtHashBucket {
 
 
 typedef struct ExtHashTable {
-    ExtHashBucket* curr_hb;
     ExtHashBucket** hash_buckets;
     size_t global_depth;
     size_t num_exb;
@@ -32,3 +36,5 @@ void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value);
 
 // result function
 HashResults* ext_hash_func_get(ExtHashTable* ext_ht, int key);
+void free_hash_result(HashResults* hres);
+

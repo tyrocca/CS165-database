@@ -20,6 +20,7 @@ server
 client
 b_tree
 db_index
+extendible_hash_table
 scratch
 .deps
 

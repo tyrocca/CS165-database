@@ -6,7 +6,6 @@
 #include "db_index.h"
 #include "cs165_api.h"
 #include "extendible_hash_table.h"
-#include <stdio.h>
 
 
 // Min and Max helper functions

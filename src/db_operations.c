@@ -1025,7 +1025,7 @@ void get_index_and_range(
 /// ***************************************************************************
 
 /* #define JOIN_SIZE 256 */
-#define NUM_PARTITIONS 10
+#define NUM_PARTITIONS 256
 #define PARTITION_BASE_NUM 4096
 typedef struct JoinPartion {
     size_t l_sz;  // number of left values

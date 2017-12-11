@@ -894,6 +894,28 @@ DbOperator* parse_math(char* query_command, ClientContext* context, Status* stat
     return db_query;
 }
 
+DbOperator* parse_update(
+    char* query_command,
+    ClientContext* context,
+    Status* status
+) {
+    (void)query_command;
+    (void)context;
+    (void)status;
+    return NULL;
+}
+
+DbOperator* parse_delete(
+    char* query_command,
+    ClientContext* context,
+    Status* status
+) {
+    (void)query_command;
+    (void)context;
+    (void)status;
+    return NULL;
+}
+
 /**
  * parse_command takes as input:
  * - the send_message from the client and then parses it into the
@@ -1061,9 +1083,14 @@ DbOperator* parse_command(
             dbo->type = SUBTRACT;
         }
     // end the "handle commands"
+    } else if (strncmp(query_command, "update", 6) == 0) {
+        query_command += 6;
+        dbo = parse_update(query_command, context, internal_status);
+    } else if (strncmp(query_command, "relational_delete", 17) == 0) {
+        query_command += 17;
+        dbo = parse_delete(query_command, context, internal_status);
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
-        // TODO: pass client context to print
         dbo = parse_print(query_command, context, internal_status);
     } else if (strncmp(query_command, "load", 4) == 0) {
         query_command += 4;

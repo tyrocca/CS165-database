@@ -248,6 +248,8 @@ typedef enum OperatorType {
     SHARED_SCAN,
     HASH_JOIN,
     NESTED_LOOP_JOIN,
+    DELETE,
+    UPDATE,
     SUM,
     AVERAGE,
     MIN,

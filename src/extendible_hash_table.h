@@ -1,3 +1,5 @@
+#ifndef EXT_HASH_TABLE_H
+#define EXT_HASH_TABLE_H
 #include <stdlib.h>
 
 // calculation for the bucket size - we want it to fit in a page
@@ -38,3 +40,4 @@ void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value);
 HashResults* ext_hash_func_get(ExtHashTable* ext_ht, int key);
 void free_hash_result(HashResults* hres);
 
+#endif

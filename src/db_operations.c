@@ -1023,6 +1023,87 @@ void get_index_and_range(
 /// Join Functions
 /// ***************************************************************************
 
+#define JOIN_SIZE 256
+#define NUM_PARTITIONS 256
+#define PARTITION_BASE_NUM 4096
+typedef struct JoinPartion {
+    size_t l_sz;  // number of left values
+    size_t l_alloc;  // number of left values
+    size_t r_sz;  // number of right values
+    size_t r_alloc;  // number of right values
+    int* l_join_keys;
+    size_t* l_join_vals;
+    int* r_join_keys;
+    size_t* r_join_vals;
+} JoinPartion;
+
+
+/**
+ * @brief Function to initialize a partition
+ *
+ * @param partitions[]
+ */
+void init_partitions(JoinPartion partitions[]) {
+    for (size_t i = 0; i < NUM_PARTITIONS; i++) {
+        partitions[i].l_sz = partitions[i].r_sz = 0;
+        partitions[i].l_alloc = partitions[i].r_alloc = PARTITION_BASE_NUM;
+        partitions[i].l_join_keys = malloc(PARTITION_BASE_NUM * sizeof(int));
+        partitions[i].l_join_vals = malloc(PARTITION_BASE_NUM * sizeof(size_t));
+        partitions[i].r_join_keys = malloc(PARTITION_BASE_NUM * sizeof(int));
+        partitions[i].r_join_vals = malloc(PARTITION_BASE_NUM * sizeof(size_t));
+    }
+}
+
+
+/**
+ * @brief Function that partitions the data into two sets
+ *
+ * @param partitions[]
+ * @param left_vals
+ * @param left_pos
+ * @param num_left
+ * @param right_vals
+ * @param right_pos
+ * @param num_right
+ */
+void partition_data(
+    JoinPartion partitions[],
+    int* left_vals,
+    size_t* left_pos,
+    size_t num_left,
+    int* right_vals,
+    size_t* right_pos,
+    size_t num_right
+) {
+    // to partition data we will just
+    // make join partitions - these will be used to join the data
+    for (size_t i = 0; i < num_left; i++) {
+        JoinPartion* partition = &partitions[left_vals[i] % NUM_PARTITIONS];
+        if (partition->l_sz == partition->l_alloc) {
+            partition->l_alloc *= 2;
+            partition->l_join_keys = realloc(partition->l_join_keys,
+                                             partition->l_alloc * sizeof(int));
+            partition->l_join_vals = realloc(partition->l_join_vals,
+                                             partition->l_alloc * sizeof(int));
+        }
+        partition->l_join_keys[partition->l_sz] = left_vals[i];
+        partition->l_join_keys[partition->l_sz++] = left_pos[i];
+
+    }
+    for (size_t i = 0; i < num_right; i++) {
+        JoinPartion* partition = &partitions[right_vals[i] % NUM_PARTITIONS];
+        if (partition->r_sz == partition->r_alloc) {
+            partition->r_alloc *= 2;
+            partition->r_join_keys = realloc(partition->r_join_keys,
+                                             partition->r_alloc * sizeof(int));
+            partition->r_join_vals = realloc(partition->r_join_vals,
+                                             partition->r_alloc * sizeof(int));
+        }
+        partition->r_join_keys[partition->r_sz] = right_vals[i];
+        partition->r_join_keys[partition->r_sz++] = right_pos[i];
+    }
+}
+
 /**
  * @brief This function performs a hash join of two columns
  *
@@ -1038,6 +1119,35 @@ void process_hash_join(
     (void) join_op;
     (void) context;
     status->msg_type = OK_DONE;
+
+    int* left_values = (int*) join_op->col1_values->payload;
+    size_t* left_pos = (size_t*) join_op->col1_positions->payload;
+    assert(join_op->col1_values->num_tuples ==
+            join_op->col1_positions->num_tuples);
+    size_t num_left = join_op->col1_values->num_tuples;
+
+
+    // this should also hold true
+    int* right_values = (int*) join_op->col2_values->payload;
+    size_t* right_pos = (size_t*) join_op->col2_positions->payload;
+    assert(join_op->col2_values->num_tuples ==
+            join_op->col2_positions->num_tuples);
+    size_t num_right = join_op->col2_values->num_tuples;
+
+    JoinPartion partitions[NUM_PARTITIONS];
+    init_partitions(partitions);
+    // partition the data
+    partition_data(
+        partitions,
+        left_values,
+        left_pos,
+        num_left,
+        right_values,
+        right_pos,
+        num_right
+    );
+
+    // partition data
     return;
 }
 

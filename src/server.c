@@ -160,11 +160,12 @@ void print_to_client(
 
     // if nothing to print, just return! - TODO is this okay?
     if (print_sz == 0) {
+        char empty_string[] = "";
         status->msg_type = OK_DONE;
-        msg->length = 0;
-        msg->payload = NULL;
+        msg->length = 1;
+        msg->payload = empty_string;
         msg->status = status->msg_type;
-        send_to_client(client_socket, msg, NULL);
+        send_to_client(client_socket, msg, empty_string);
         free(print_op->print_objects);
         return;
     }

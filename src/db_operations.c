@@ -557,16 +557,25 @@ void process_sum_avg(MathOperator* math_op, OperatorType op_type, ClientContext*
     }
     // allocate the result column
     Result* result_col = malloc(sizeof(Result));
-    result_col->num_tuples = 1;
-    GeneralizedColumnHandle* gcol_handle = add_result_column(context, math_op->handle1);
-    if (op_type == SUM) {
-        result_col->data_type = LONG;
-        result_col->payload = (void*) sum;
+    GeneralizedColumnHandle* gcol_handle = add_result_column(context,
+                                                             math_op->handle1);
+    if (num_results > 0) {
+        result_col->num_tuples = 1;
+        if (op_type == SUM) {
+            result_col->data_type = LONG;
+            result_col->payload = (void*) sum;
+        } else {
+            result_col->data_type = DOUBLE;
+            double* avg = malloc(sizeof(double));
+            *avg = (double)*sum / (double) num_results;
+            result_col->payload = (void*) avg;
+            free(sum);
+        }
     } else {
-        result_col->data_type = DOUBLE;
-        double* avg = malloc(sizeof(double));
-        *avg = (double)*sum / (double) num_results;
-        result_col->payload = (void*) avg;
+        // this shouldn't matter
+        result_col->data_type = INT;
+        result_col->num_tuples = 0;
+        result_col->payload = NULL;
         free(sum);
     }
 

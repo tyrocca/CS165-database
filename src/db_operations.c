@@ -1023,8 +1023,8 @@ void get_index_and_range(
 /// Join Functions
 /// ***************************************************************************
 
-#define JOIN_SIZE 256
-#define NUM_PARTITIONS 256
+/* #define JOIN_SIZE 256 */
+#define NUM_PARTITIONS 10
 #define PARTITION_BASE_NUM 4096
 typedef struct JoinPartion {
     size_t l_sz;  // number of left values
@@ -1043,7 +1043,7 @@ typedef struct JoinPartion {
  *
  * @param partitions[]
  */
-void init_partitions(JoinPartion partitions[]) {
+void init_partitions(JoinPartion* partitions) {
     for (size_t i = 0; i < NUM_PARTITIONS; i++) {
         partitions[i].l_sz = partitions[i].r_sz = 0;
         partitions[i].l_alloc = partitions[i].r_alloc = PARTITION_BASE_NUM;
@@ -1067,7 +1067,7 @@ void init_partitions(JoinPartion partitions[]) {
  * @param num_right
  */
 void partition_data(
-    JoinPartion partitions[],
+    JoinPartion* partitions,
     int* left_vals,
     size_t* left_pos,
     size_t num_left,
@@ -1084,10 +1084,10 @@ void partition_data(
             partition->l_join_keys = realloc(partition->l_join_keys,
                                              partition->l_alloc * sizeof(int));
             partition->l_join_vals = realloc(partition->l_join_vals,
-                                             partition->l_alloc * sizeof(int));
+                                             partition->l_alloc * sizeof(size_t));
         }
         partition->l_join_keys[partition->l_sz] = left_vals[i];
-        partition->l_join_keys[partition->l_sz++] = left_pos[i];
+        partition->l_join_vals[partition->l_sz++] = left_pos[i];
 
     }
     for (size_t i = 0; i < num_right; i++) {
@@ -1097,10 +1097,10 @@ void partition_data(
             partition->r_join_keys = realloc(partition->r_join_keys,
                                              partition->r_alloc * sizeof(int));
             partition->r_join_vals = realloc(partition->r_join_vals,
-                                             partition->r_alloc * sizeof(int));
+                                             partition->r_alloc * sizeof(size_t));
         }
         partition->r_join_keys[partition->r_sz] = right_vals[i];
-        partition->r_join_keys[partition->r_sz++] = right_pos[i];
+        partition->r_join_vals[partition->r_sz++] = right_pos[i];
     }
 }
 
@@ -1116,9 +1116,6 @@ void process_hash_join(
     ClientContext* context,
     Status* status
 ) {
-    (void) join_op;
-    (void) context;
-    status->msg_type = OK_DONE;
 
     int* left_values = (int*) join_op->col1_values->payload;
     size_t* left_pos = (size_t*) join_op->col1_positions->payload;
@@ -1134,7 +1131,8 @@ void process_hash_join(
             join_op->col2_positions->num_tuples);
     size_t num_right = join_op->col2_values->num_tuples;
 
-    JoinPartion partitions[NUM_PARTITIONS];
+    /* JoinPartion partitions[NUM_PARTITIONS]; */
+    JoinPartion* partitions = malloc(NUM_PARTITIONS * sizeof(JoinPartion));
     init_partitions(partitions);
     // partition the data
     partition_data(
@@ -1147,7 +1145,19 @@ void process_hash_join(
         num_right
     );
 
+    // this is the goal
+    for (size_t i = 0; i < NUM_PARTITIONS; i++) {
+        // PARTITION and join!!
+        free(partitions[i].l_join_keys);
+        free(partitions[i].l_join_vals);
+        free(partitions[i].r_join_keys);
+        free(partitions[i].r_join_vals);
+    }
+    /* for (int i = 0; i < NUM_PARTITIONS; i++) { */
+    /* } */
+    free(partitions);
     // partition data
+    status->msg_type = OK_DONE;
     return;
 }
 

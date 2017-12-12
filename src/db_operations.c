@@ -1,12 +1,12 @@
 #include <limits.h>
 #include <assert.h>
 #include <string.h>
+#include <pthread.h>
 #include "db_operations.h"
 #include "client_context.h"
 #include "db_index.h"
 #include "cs165_api.h"
 #include "extendible_hash_table.h"
-
 
 // Min and Max helper functions
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -267,12 +267,19 @@ void select_from_col(Comparator* comp, Result* result_col) {
     if (col->index_type == NONE || col->index == NULL) {
         size_t* positions = malloc(sizeof(size_t) * (*col->size_ptr));
         result_col->num_tuples = 0;
+
         for (size_t idx = 0; idx < *col->size_ptr; idx++) {
-            positions[result_col->num_tuples] = idx;
-            // TODO: what if we are at the top bound for high? will we not get max?
-            result_col->num_tuples += (col->data[idx] >= comp->p_low &&
-                                       col->data[idx] < comp->p_high);
+            // Nonbranching selction - better for middle selectivity
+            /* positions[result_col->num_tuples] = idx; */
+            /* result_col->num_tuples += (col->data[idx] >= comp->p_low & */
+            /*                            col->data[idx] < comp->p_high); */
+
+            // Branching scan - better for higher selectivity
+            if (col->data[idx] >= comp->p_low && col->data[idx] < comp->p_high) {
+                positions[result_col->num_tuples++] = idx;
+            }
         }
+
         // if no matches return
         if (result_col->num_tuples == 0) {
             free(positions);
@@ -293,6 +300,109 @@ void select_from_col(Comparator* comp, Result* result_col) {
     }
     return;
 }
+//**
+// * @brief Shared column selector working version
+// *
+// * @param comp
+// * @param result_col
+// */
+//void* shared_col_select(
+//    Comparator* comps[],
+//    size_t num_queries,
+//    Result* result_cols[],
+//    int maxval,
+//    int minval
+//) {
+//    Column* col = comps[0]->gen_col->column_pointer.column;
+//
+//    // create a result column for each position
+//    size_t* all_positions[num_queries];
+//    for (size_t i = 0; i < num_queries; i++) {
+//        all_positions[i] = malloc(sizeof(size_t) * (*col->size_ptr));
+//        result_cols[i]->num_tuples = 0;
+//    }
+//
+//    // Go through the columns and create the new indices
+//    for (size_t idx = 0; idx < *col->size_ptr; idx++) {
+//        // skip val if it's not in the range
+//        int val = col->data[idx];
+//        if (val < minval || val > maxval) {
+//            continue;
+//        }
+//        for (size_t q_num = 0; q_num < num_queries; q_num++) {
+//            // METHOD 1 - conditional
+//            if ((val >= comps[q_num]->p_low) && (val < comps[q_num]->p_high)) {
+//                all_positions[q_num][result_cols[q_num]->num_tuples++] = idx;
+//            }
+//
+//            // METHOD 2 - always inc - this is slower
+//            /* all_positions[q_num][result_cols[q_num]->num_tuples] = idx; */
+//            /* // todo: what if we are at the top bound for high? will we not get max? */
+//            /* result_cols[q_num]->num_tuples += ( */
+//            /*         (col->data[idx] >= comps[q_num]->p_low) && */
+//            /*         (col->data[idx] < comps[q_num]->p_high) */
+//            /* ); */
+//        }
+//    }
+//
+//    // for each query reallocate the column size and set it to a result
+//    // column, if no results free the column
+//    for (size_t i = 0; i < num_queries; i++) {
+//        if (result_cols[i]->num_tuples == 0) {
+//            free(all_positions[i]);
+//            result_cols[i]->payload = NULL;
+//        } else {
+//            result_cols[i]->payload = (void*) realloc(
+//                all_positions[i],
+//                sizeof(size_t) * result_cols[i]->num_tuples
+//            );
+//        }
+//    }
+//    return NULL;
+//}
+
+
+/* void process_shared_scans(SharedScanOperator* ss_op, ClientContext* context, Status* status) { */
+/*     // make it so we */
+/*     Comparator* comps[ss_op->num_scans]; */
+/*     Result* results[ss_op->num_scans]; */
+
+/*     int maxval = INT_MIN; */
+/*     int minval = INT_MAX; */
+/*     for (size_t i = 0; i < ss_op->num_scans; ++i) { */
+/*         results[i] = malloc(sizeof(Result)); */
+/*         comps[i] = &ss_op->db_scans[i]->operator_fields.select_operator.comparator; */
+/*         // DELETE - set the ranges */
+/*         maxval = MAX(maxval, comps[i]->p_high); */
+/*         minval = MIN(minval, comps[i]->p_low); */
+
+/*         GeneralizedColumnHandle* gcol_handle = add_result_column( */
+/*             context, */
+/*             comps[i]->handle */
+/*         ); */
+/*         gcol_handle->generalized_column.column_type = RESULT; */
+/*         gcol_handle->generalized_column.column_pointer.result = results[i]; */
+/*         results[i]->data_type = INDEX; */
+/*     } */
+/*     shared_col_select( */
+/*         comps, */
+/*         ss_op->num_scans, */
+/*         results, */
+/*         maxval, */
+/*         minval */
+/*     ); */
+/*     free(ss_op->db_scans); */
+/*     status->msg_type = OK_DONE; */
+/* } */
+
+
+typedef struct SharedScanArg {
+    size_t num_queries;
+    Comparator** comps;
+    Result** result_cols;
+    int minval;
+    int maxval;
+} SharedScanArg;
 
 /**
  * @brief Shared column selector
@@ -300,14 +410,13 @@ void select_from_col(Comparator* comp, Result* result_col) {
  * @param comp
  * @param result_col
  */
-void shared_col_select(
-    Comparator* comps[],
-    size_t num_queries,
-    Result* result_cols[],
-    int maxval,
-    int minval
-) {
-    // todo: make it so this only does 1 comparison at a time
+void* shared_col_select(void* ss_thread_arg) {
+    SharedScanArg* ss_arg = (SharedScanArg*) ss_thread_arg;
+    Comparator** comps = ss_arg->comps;
+    size_t num_queries = ss_arg->num_queries;
+    Result** result_cols = ss_arg->result_cols;
+    int maxval = ss_arg->maxval;
+    int minval = ss_arg->minval;
     Column* col = comps[0]->gen_col->column_pointer.column;
 
     // create a result column for each position
@@ -353,16 +462,46 @@ void shared_col_select(
             );
         }
     }
+    return NULL;
 }
 
+#define MIN_QUERIES_PER_THREAD 4
+#define MAX_THREADS 9
+#define NUM_THREADS (MAX_THREADS - 1)
 
+/**
+ * @brief Attempt at threading these
+ *
+ * @param ss_op
+ * @param context
+ * @param status
+ */
 void process_shared_scans(SharedScanOperator* ss_op, ClientContext* context, Status* status) {
     // make it so we
-    Comparator* comps[ss_op->num_scans];
-    Result* results[ss_op->num_scans];
+    Comparator** comps = malloc(ss_op->num_scans * sizeof(Comparator*));
+    Result** results = malloc(ss_op->num_scans * sizeof(Result*));
 
     int maxval = INT_MIN;
     int minval = INT_MAX;
+
+    // this is the number of threads. We want to guarentee about
+    // MIN QUERIES PER THREAD
+    size_t num_threads = MIN(NUM_THREADS, (ss_op->num_scans / MIN_QUERIES_PER_THREAD));
+    if (num_threads == 0 || ss_op->num_scans % num_threads != 0) {
+        num_threads++;
+    }
+
+    // if it doesn't evenly divide add a new thread for the remainder
+    size_t q_per_thread = ss_op->num_scans / num_threads;
+    if (ss_op->num_scans % num_threads != 0) {
+        q_per_thread++;
+    }
+    pthread_t* threads = malloc(num_threads * sizeof(pthread_t));
+    SharedScanArg* ss_arg_array = malloc(num_threads * sizeof(SharedScanArg));
+
+    size_t queries_grouped = 0;
+    size_t group_num = 0;
+
     for (size_t i = 0; i < ss_op->num_scans; ++i) {
         results[i] = malloc(sizeof(Result));
         comps[i] = &ss_op->db_scans[i]->operator_fields.select_operator.comparator;
@@ -377,18 +516,37 @@ void process_shared_scans(SharedScanOperator* ss_op, ClientContext* context, Sta
         gcol_handle->generalized_column.column_type = RESULT;
         gcol_handle->generalized_column.column_pointer.result = results[i];
         results[i]->data_type = INDEX;
+
+        queries_grouped++;
+        // if it is the last query or we have our desired number of queries
+        if (i + 1 == ss_op->num_scans || queries_grouped == q_per_thread) {
+            ss_arg_array[group_num].comps = &comps[i - (q_per_thread - 1)];
+            ss_arg_array[group_num].num_queries = queries_grouped;
+            ss_arg_array[group_num].result_cols = &results[i - (q_per_thread - 1)];
+            ss_arg_array[group_num].maxval = maxval;
+            ss_arg_array[group_num].minval = minval;
+            // now reset the values
+            group_num++;
+            queries_grouped = 0;
+            maxval = INT_MIN;
+            minval = INT_MAX;
+        }
     }
-    shared_col_select(
-        comps,
-        ss_op->num_scans,
-        results,
-        maxval,
-        minval
-    );
+    for (size_t i = 0; i < num_threads; i++) {
+        pthread_create(&threads[i], NULL, &shared_col_select,
+                (void*) (ss_arg_array + i));
+    }
+    for (size_t i = 0; i < num_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+    free(comps);
+    free(results);
+    free(ss_arg_array);
+    free(threads);
     free(ss_op->db_scans);
     status->msg_type = OK_DONE;
-
 }
+
 
 /**
  * @brief This function takes a selection of indices from a selected column

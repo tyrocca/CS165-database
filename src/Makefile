@@ -17,7 +17,7 @@ CC = gcc -std=c99
 ############################
 
 # Default optimization level
-O ?= 00
+O ?= 03
 
 # Flags and other libraries
 override CFLAGS += -Wall -Wextra -pedantic -pthread -O$(O) -I$(INCLUDES)

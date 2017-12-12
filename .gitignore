@@ -39,5 +39,6 @@ database/
 .gdbinit
 temp.txt
 project_tests_1M/
+**/experiments/*.csv
 foo.txt
 asdf.txt

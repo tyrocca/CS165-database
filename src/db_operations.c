@@ -270,14 +270,14 @@ void select_from_col(Comparator* comp, Result* result_col) {
 
         for (size_t idx = 0; idx < *col->size_ptr; idx++) {
             // Nonbranching selction - better for middle selectivity
-            /* positions[result_col->num_tuples] = idx; */
-            /* result_col->num_tuples += (col->data[idx] >= comp->p_low & */
-            /*                            col->data[idx] < comp->p_high); */
+            positions[result_col->num_tuples] = idx;
+            result_col->num_tuples += (col->data[idx] >= comp->p_low &
+                                       col->data[idx] < comp->p_high);
 
             // Branching scan - better for higher selectivity
-            if (col->data[idx] >= comp->p_low && col->data[idx] < comp->p_high) {
-                positions[result_col->num_tuples++] = idx;
-            }
+            /* if (col->data[idx] >= comp->p_low && col->data[idx] < comp->p_high) { */
+            /*     positions[result_col->num_tuples++] = idx; */
+            /* } */
         }
 
         // if no matches return

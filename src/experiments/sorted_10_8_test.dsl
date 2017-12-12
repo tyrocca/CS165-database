@@ -1,0 +1,13 @@
+s1=select(db1.tbl_sorted_8.col1,0,1000000)
+s5=select(db1.tbl_sorted_8.col1,0,5000000)
+s10=select(db1.tbl_sorted_8.col1,0,10000000)
+s20=select(db1.tbl_sorted_8.col1,0,20000000)
+s30=select(db1.tbl_sorted_8.col1,0,30000000)
+s40=select(db1.tbl_sorted_8.col1,0,40000000)
+s50=select(db1.tbl_sorted_8.col1,0,50000000)
+s60=select(db1.tbl_sorted_8.col1,0,60000000)
+s70=select(db1.tbl_sorted_8.col1,0,70000000)
+s80=select(db1.tbl_sorted_8.col1,0,80000000)
+s90=select(db1.tbl_sorted_8.col1,0,90000000)
+s99=select(db1.tbl_sorted_8.col1,0,99000000)
+shutdown

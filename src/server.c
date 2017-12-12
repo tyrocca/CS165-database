@@ -465,7 +465,6 @@ int main(void) {
         log_info("-- Database found... loading\n", client_socket);
         db_startup();
     }
-    fprintf(stderr, "DONE\n");
 
     int exit_server = 0;
     while (exit_server != 1) {

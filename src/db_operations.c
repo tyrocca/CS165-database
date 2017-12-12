@@ -465,8 +465,8 @@ void* shared_col_select(void* ss_thread_arg) {
     return NULL;
 }
 
-#define MIN_QUERIES_PER_THREAD 4
-#define MAX_THREADS 9
+#define MIN_QUERIES_PER_THREAD 3
+#define MAX_THREADS 16
 #define NUM_THREADS (MAX_THREADS - 1)
 
 /**

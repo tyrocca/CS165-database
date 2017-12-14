@@ -89,36 +89,37 @@ long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
 /// Delete Functions
 /// ***************************************************************************
 
-/* void delete_from_table(Table* table, size_t row_idx) { */
-/*     for (size_t idx = 0; idx < table->col_count; idx++) { */
-/*         Column* col = &table->columns[idx]; */
-/*         if (col->index_type == BTREE) { */
-/*             // if we have a btree we need to scan the leaves */
-/*             // and find the index, then we need to shift all down */
-/*             BPTNode* bt_root = ((BPTNode*) col->index); */
-/*             // find leaf */
-/*             // Go to leaf where the value would exist and */
-/*             // remove */
-/*             /1* col->index = (void*) btree_remove_value( *1/ */
-/*             /1*     bt_root, *1/ */
-/*             /1*     values[idx], *1/ */
-/*             /1*     row_idx, *1/ */
-/*             /1*     shift_values *1/ */
-/*             /1* ); *1/ */
-/*         } else if (col->index_type == SORTED && col->clustered == false) { */
-/*         } */
-/*         // if we are deleting the last value then we don't need to do this */
-/*         if (row_idx + 1 < table->table_size) { */
-/*             memmove( */
-/*                 (void*) &table->columns[idx].data[row_idx + 1], */
-/*                 (void*) &table->columns[idx].data[row_idx], */
-/*                 (table->table_size - row_idx - 1) * sizeof(int) */
-/*             ); */
-/*         } */
-/*     } */
-/*     // finally delete from the table */
-/*     table->table_size--; */
-/* } */
+void delete_from_table(Table* table, size_t row_idx) {
+    for (size_t idx = 0; idx < table->col_count; idx++) {
+        Column* col = &table->columns[idx];
+        if (col->index_type == BTREE) {
+            // if we have a btree we need to scan the leaves
+            // and find the index, then we need to shift all down
+            BPTNode* bt_root = ((BPTNode*) col->index);
+            col->index = bt_root;
+            // find leaf
+            // Go to leaf where the value would exist and
+            // remove
+            /* col->index = (void*) btree_remove_value( */
+            /*     bt_root, */
+            /*     values[idx], */
+            /*     row_idx, */
+            /*     shift_values */
+            /* ); */
+        } else if (col->index_type == SORTED && col->clustered == false) {
+        }
+        // if we are deleting the last value then we don't need to do this
+        if (row_idx + 1 < table->table_size) {
+            memmove(
+                (void*) &table->columns[idx].data[row_idx + 1],
+                (void*) &table->columns[idx].data[row_idx],
+                (table->table_size - row_idx - 1) * sizeof(int)
+            );
+        }
+    }
+    // finally delete from the table
+    table->table_size--;
+}
 
 /// ***************************************************************************
 /// Insertion Functions
@@ -1706,6 +1707,12 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
         case INSERT:
             // on insert do this
             process_insert(query->operator_fields.insert_operator, status);
+            break;
+        case DELETE:
+        case UPDATE:
+            // CHANGE ME
+            status->msg = "";
+            status->msg_type = OK_DONE;
             break;
         default:
             status->msg = "Undefined Operation";

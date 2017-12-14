@@ -85,6 +85,40 @@ long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
     }
 }
 
+/// ***************************************************************************
+/// Delete Functions
+/// ***************************************************************************
+
+/* void delete_from_table(Table* table, size_t row_idx) { */
+/*     for (size_t idx = 0; idx < table->col_count; idx++) { */
+/*         Column* col = &table->columns[idx]; */
+/*         if (col->index_type == BTREE) { */
+/*             // if we have a btree we need to scan the leaves */
+/*             // and find the index, then we need to shift all down */
+/*             BPTNode* bt_root = ((BPTNode*) col->index); */
+/*             // find leaf */
+/*             // Go to leaf where the value would exist and */
+/*             // remove */
+/*             /1* col->index = (void*) btree_remove_value( *1/ */
+/*             /1*     bt_root, *1/ */
+/*             /1*     values[idx], *1/ */
+/*             /1*     row_idx, *1/ */
+/*             /1*     shift_values *1/ */
+/*             /1* ); *1/ */
+/*         } else if (col->index_type == SORTED && col->clustered == false) { */
+/*         } */
+/*         // if we are deleting the last value then we don't need to do this */
+/*         if (row_idx + 1 < table->table_size) { */
+/*             memmove( */
+/*                 (void*) &table->columns[idx].data[row_idx + 1], */
+/*                 (void*) &table->columns[idx].data[row_idx], */
+/*                 (table->table_size - row_idx - 1) * sizeof(int) */
+/*             ); */
+/*         } */
+/*     } */
+/*     // finally delete from the table */
+/*     table->table_size--; */
+/* } */
 
 /// ***************************************************************************
 /// Insertion Functions
@@ -172,8 +206,10 @@ void insert_into_table(Table* table, int* values, Status* status) {
             if (sorted_index->keys != index_col->data) {
                 sorted_index->keys = index_col->data;
             }
+            // as we haven't inserted yet
+            sorted_index->num_items = table->table_size - 1;
             row_idx = get_sorted_idx(sorted_index, insert_val);
-            sorted_index->num_items = table->table_size;
+            shift_values = (row_idx + 1) < table->table_size;
         }
 
         // TODO: performace improvement make it so we

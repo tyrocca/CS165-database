@@ -1083,8 +1083,8 @@ DbOperator* parse_command(
             dbo->type = SUBTRACT;
         }
     // end the "handle commands"
-    } else if (strncmp(query_command, "update", 6) == 0) {
-        query_command += 6;
+    } else if (strncmp(query_command, "relational_update", 17) == 0) {
+        query_command += 17;
         dbo = parse_update(query_command, context, internal_status);
     } else if (strncmp(query_command, "relational_delete", 17) == 0) {
         query_command += 17;

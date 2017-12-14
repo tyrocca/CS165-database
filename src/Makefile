@@ -7,13 +7,13 @@ all: client server
 
 # C-compiler settings
 # TODO: CHANGE BACK
-# CC = gcc -std=c99
+CC = gcc -std=c99
 
 ################# UNCOMMENT
-CC = clang -std=c99 -ggdb3
-CFLAGS+=-fsanitize=undefined,address -fno-omit-frame-pointer
-# RUN_OPTIONS=
-ASAN_OPTIONS=allocator_may_return_null=1
+# CC = clang -std=c99 -ggdb3
+# CFLAGS+=-fsanitize=undefined,address -fno-omit-frame-pointer
+# # RUN_OPTIONS=
+# ASAN_OPTIONS=allocator_may_return_null=1
 ############################
 
 # Default optimization level

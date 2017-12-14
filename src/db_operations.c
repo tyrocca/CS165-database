@@ -210,6 +210,7 @@ void insert_into_table(Table* table, int* values, Status* status) {
             // as we haven't inserted yet
             sorted_index->num_items = table->table_size - 1;
             row_idx = get_sorted_idx(sorted_index, insert_val);
+            sorted_index->num_items = table->table_size;
             shift_values = (row_idx + 1) < table->table_size;
         }
 

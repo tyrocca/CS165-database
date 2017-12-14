@@ -901,7 +901,9 @@ DbOperator* parse_update(
 ) {
     (void)query_command;
     (void)context;
-    (void)status;
+    /* (void)status; */
+    status->code = OK;
+    status->msg_type = OK_DONE;
     return NULL;
 }
 
@@ -912,7 +914,9 @@ DbOperator* parse_delete(
 ) {
     (void)query_command;
     (void)context;
-    (void)status;
+    /* (void)status; */
+    status->code = OK;
+    status->msg_type = OK_DONE;
     return NULL;
 }
 

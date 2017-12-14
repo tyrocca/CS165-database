@@ -224,7 +224,8 @@ void get_range_sorted(SortedIndex* sorted_index, int low, int high, Result* resu
     }
 
     // make sure the high bound doesn't include any unqualified values
-    while (high_bound >= low_bound && sorted_index->keys[high_bound - 1] >= high) {
+    while (high_bound > 0 && high_bound >= low_bound &&
+           sorted_index->keys[high_bound - 1] >= high) {
         high_bound--;
     }
 
@@ -234,6 +235,7 @@ void get_range_sorted(SortedIndex* sorted_index, int low, int high, Result* resu
     if (low_bound == high_bound) {
         result->num_tuples = 0;
         result->capacity = 0;
+        result->payload = NULL;
         return;
     }
 

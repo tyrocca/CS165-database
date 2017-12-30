@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include "extendible_hash_table.h"
+#include "extensible_hash_table.h"
 #include <stdio.h>
 #include <time.h>
 

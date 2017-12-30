@@ -6,7 +6,7 @@
 #include "client_context.h"
 #include "db_index.h"
 #include "cs165_api.h"
-#include "extendible_hash_table.h"
+#include "extensible_hash_table.h"
 #include <time.h>
 #include <stdio.h>
 

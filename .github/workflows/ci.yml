@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build: [release, sanitizers]
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} / ${{ matrix.build }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (release)
+        if: matrix.build == 'release'
+        run: make -C src CFLAGS=-Werror
+
+      - name: Build (AddressSanitizer + UBSan)
+        if: matrix.build == 'sanitizers'
+        run: make -C src debug
+
+      - name: End-to-end tests
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ./run_tests.py --no-build --verbose
+
+      - name: Randomized differential tests
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: tests/fuzz.py --no-build --seeds 25
+
+      - name: Upload test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ matrix.os }}-${{ matrix.build }}
+          path: test_output/

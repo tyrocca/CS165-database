@@ -1,78 +1,43 @@
-# CS165 MakeFile
-# This file includes automatic dependency tracking
-# Please see example of "utils" to see how to add additional file
-# to your project
+# Column store database - client and server
+#
+#   make              optimized build (-O2)
+#   make debug        unoptimized build with AddressSanitizer + UBSan
+#   make test         build, then run the end-to-end DSL tests
+#   make fuzz         build, then run the randomized differential tests
+#   make clean
+
+CC ?= cc
+O ?= 2
+override CFLAGS += -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -pedantic -pthread -O$(O) -g -Iinclude -MMD -MP
+LDFLAGS += -pthread
+
+SANITIZE = -fsanitize=address,undefined -fno-omit-frame-pointer
+
+CLIENT_OBJS = client.o utils.o
+SERVER_OBJS = server.o parse.o utils.o db_manager.o client_context.o \
+              db_operations.o db_persistance.o db_index.o extensible_hash_table.o
 
 all: client server
 
-# C-compiler settings
-# TODO: CHANGE BACK
-CC = gcc -std=c99
+client: $(CLIENT_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-################# UNCOMMENT
-# CC = clang -std=c99 -ggdb3
-# CFLAGS+=-fsanitize=undefined,address -fno-omit-frame-pointer
-# # RUN_OPTIONS=
-# ASAN_OPTIONS=allocator_may_return_null=1
-############################
+server: $(SERVER_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-# Default optimization level
-O ?= 00
+debug: clean
+	$(MAKE) all O=0 CFLAGS="$(SANITIZE)" LDFLAGS="$(SANITIZE)"
 
-# Flags and other libraries
-override CFLAGS += -Wall -Wextra -pedantic -pthread -O$(O) -I$(INCLUDES)
-LDFLAGS =
-LIBS =
-INCLUDES = include
+test: all
+	cd .. && ./run_tests.py --no-build
 
-####### Automatic dependency magic #######
-# Set-up dependency directory
-DEPSDIR := .deps
-BUILDSTAMP := $(DEPSDIR)/rebuildstamp
-DEPFILES := $(wildcard $(DEPSDIR)/*.d)
-ifneq ($(DEPFILES),)
-include $(DEPFILES)
-endif
-DEPCFLAGS = -MD -MF $(DEPSDIR)/$*.d -MP
-
-# Dependency compilation
-ifneq ($(DEP_CC),$(CC) $(CFLAGS) $(DEPCFLAGS) $(O))
-DEP_CC := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CC:=$(CC) $(CFLAGS) $(DEPCFLAGS) $(O)" >$(DEPSDIR)/_cc.d)
-endif
-
-# Make sure dependency directories are generated
-$(DEPSDIR)/stamp $(BUILDSTAMP):
-	mkdir -p $(@D)
-	touch $@
-
-####### Automatic dependency magic #######
-
-%.o : %.c $(BUILDSTAMP)
-	$(CC) $(CFLAGS) $(DEPCFLAGS) -O$(O) -o $@ -c $<
-
-##
-# To include additional non-executable files (e.g. selects.c, utils.c, etc),
-# you'll need to add an additional build dependency to the file that requires
-# the new file.  For example, see that client and server both require utils.o
-#
-# If you create a new file such as selects.c, then you will need a "selects.o"
-# dependency on the right side of whichever one requires the file.
-##
-
-client: client.o utils.o
-	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
-
-server: server.o parse.o utils.o db_manager.o client_context.o db_operations.o db_persistance.o db_index.o extensible_hash_table.o
-	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+fuzz: all
+	cd .. && tests/fuzz.py --no-build
 
 clean:
-	rm -f client server *.o *~ *.bak core *.core cs165_unix_socket
-	rm -rf .deps
-	rm -rf *.dSYM
-	rm -rf database
-	# rm -f /tmp/cs165_unix_socket
+	rm -f client server *.o *.d cs165_unix_socket
+	rm -rf *.dSYM .deps database
 
-distclean: clean
-	rm -rf $(DEPSDIR)
+-include $(SERVER_OBJS:.o=.d) $(CLIENT_OBJS:.o=.d)
 
-.PHONY: all clean distclean
+.PHONY: all debug test fuzz clean

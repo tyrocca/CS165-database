@@ -1,44 +1,26 @@
-# Object files
-obj/*
+# Build output
 *.o
-*.ko
-*.obj
-*.elf
-
-# Libraries
-*.lib
+*.d
 *.a
-
-# Shared objects
 *.so
-*.so.*
-
-# Executables
-*.out
-bin/*
-server
-client
-b_tree
-db_index
-extendible_hash_table
-scratch
-.deps
-
-#ide stuff
-tags
-Tags
-*.swp
-
-# other
-r*hs # vtune output
-.deps # makefile temps
 *.dSYM/
-.vagrant/
+.deps/
+src/server
+src/client
+
+# Runtime state (the server writes these to the directory it runs from)
+cs165_unix_socket
 database/
+test_output/
+
+# Generated benchmark data
+project_tests_1M/
+experiments/*.csv
+
+# Editors / tools
+tags
+*.swp
 .gdb_history
 .gdbinit
-temp.txt
-project_tests_1M/
-**/experiments/*.csv
-foo.txt
-asdf.txt
+__pycache__/
+.DS_Store

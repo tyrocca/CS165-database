@@ -148,7 +148,6 @@ void insert_into_sorted(SortedIndex* sorted_index, int value, size_t position);
 /// B Plus Tree Functions
 /// **************************************************************************
 
-size_t btree_find_insert_position(BPTNode* root, int value);
 void find_values_unclustered(BPTNode* root, int gte_val, int lt_val, Result* result);
 void find_values_clustered(BPTNode* root, int gte_val, int lt_val, Result* result);
 

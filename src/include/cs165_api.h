@@ -270,6 +270,23 @@ typedef struct InsertOperator {
     int* values;
 } InsertOperator;
 /*
+ * necessary fields for deletes (rows of table at the given positions)
+ */
+typedef struct DeleteOperator {
+    Table* table;
+    Result* positions;
+} DeleteOperator;
+
+/*
+ * necessary fields for updates (set column to value at the given positions)
+ */
+typedef struct UpdateOperator {
+    Column* column;
+    Result* positions;
+    int value;
+} UpdateOperator;
+
+/*
  * necessary fields for Opening
  */
 typedef struct OpenOperator {
@@ -336,6 +353,8 @@ typedef struct SharedScanOperator {
  */
 typedef union OperatorFields {
     InsertOperator insert_operator;
+    DeleteOperator delete_operator;
+    UpdateOperator update_operator;
     OpenOperator open_operator;
     SelectOperator select_operator;
     FetchOperator fetch_operator;
@@ -363,10 +382,10 @@ typedef struct DbOperator {
 extern Db* current_db;
 extern Db* db_head;
 
-Status db_startup();
+Status db_startup(void);
 
 // this will update the file with the databases
-Status update_db_file();
+Status update_db_file(void);
 
 /**
  * sync_db(db)
@@ -398,7 +417,7 @@ Column* create_column(
 );
 
 // functions around shutdown
-Status shutdown_server();
+Status shutdown_server(void);
 // was status...
 void shutdown_database(Db* db);
 

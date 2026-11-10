@@ -287,7 +287,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
  *
  * @return status of the startup process
  */
-Status db_startup() {
+Status db_startup(void) {
     Status startup_status = { .code = OK };
     // open file
     FILE* db_fp = fopen("./database/database.bin", "r");
@@ -447,7 +447,7 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
  *
  * @return status of the update
  */
-Status dump_databases() {
+Status dump_databases(void) {
     Db* db_ptr = db_head;
     Status status = { .code = OK };
 
@@ -585,7 +585,7 @@ void shutdown_database(Db* db) {
  *
  * @return status
  */
-Status shutdown_server() {
+Status shutdown_server(void) {
     Status status = { .code = OK };
     while (status.code != ERROR && db_head) {
         status = sync_db(db_head);

@@ -13,6 +13,7 @@
  * http://beej.us/guide/bgipc/output/html/multipage/unixsock.html
  **/
 #include <errno.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -42,7 +43,7 @@
  *
  * @return Bool - if the database file exists
  */
-bool db_exists() {
+bool db_exists(void) {
     struct stat st;
     if (stat("./database", &st) == -1) {
         mkdir("./database", 0777);
@@ -58,15 +59,16 @@ bool db_exists() {
  * @param response
  */
 void send_to_client(int client_socket, message* msg, char* response){
+    // a client that disconnects early must not take the server down with it,
+    // so a failed send just drops the reply (the next recv sees the close)
     // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
     if (send(client_socket, msg, sizeof(message), 0) == -1) {
         log_err("Failed to send message.\n");
-        exit(1);
+        return;
     }
     // 4. Send response of request
     if (send(client_socket, response, msg->length, 0) == -1) {
         log_err("Failed to send message.\n");
-        exit(1);
     }
 }
 
@@ -101,7 +103,7 @@ int val_to_str(
             return snprintf(
                 &response[char_idx],
                 DEFAULT_QUERY_BUFFER_SIZE - char_idx,
-                "%lf",
+                "%.2lf",
                 ((double*) data_ptr)[row_idx]
             );
         case LONG:
@@ -196,12 +198,11 @@ void print_to_client(
             assert(result > 0);
             // make it adjust appropriately
             if ((char_idx + result) >= DEFAULT_QUERY_BUFFER_SIZE - 2) {
-                // end the string
-                response[char_idx] = '\0';
-                char_idx = 0;
-                msg->length = DEFAULT_QUERY_BUFFER_SIZE;
+                // send exactly what has been written so far
+                msg->length = char_idx;
                 msg->payload = response;
                 send_to_client(client_socket, msg, response);
+                char_idx = 0;
             } else {
                 char_idx += result;
                 response[char_idx++] = '\n';
@@ -231,12 +232,11 @@ void print_to_client(
             assert(result > 0);
             // make it adjust appropriately
             if ((char_idx + result) >= DEFAULT_QUERY_BUFFER_SIZE - 2) {
-                // end the string
-                response[char_idx] = '\0';
-                char_idx = 0;
-                msg->length = DEFAULT_QUERY_BUFFER_SIZE;
+                // send exactly what has been written so far
+                msg->length = char_idx;
                 msg->payload = response;
                 send_to_client(client_socket, msg, response);
+                char_idx = 0;
             } else if ((col_idx + 1) == print_op->num_columns) {
                 // if we are at the end of the column add
                 // a new line character
@@ -295,10 +295,10 @@ void handle_client(int client_socket, int* exit_server) {
     // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
     // 4. Send response of request.
     do {
-        length = recv(client_socket, &recv_message, sizeof(message), 0);
+        length = recv_all(client_socket, &recv_message, sizeof(message));
         if (length < 0) {
             log_err("Client connection closed!\n");
-            exit(1);
+            done = 1;
         } else if (length == 0) {
             done = 1;
         }
@@ -311,7 +311,7 @@ void handle_client(int client_socket, int* exit_server) {
                 .msg = ""
             };
             char recv_buffer[recv_message.length + 1];
-            length = recv(client_socket, recv_buffer, recv_message.length, 0);
+            length = recv_all(client_socket, recv_buffer, recv_message.length);
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
 
@@ -405,7 +405,7 @@ void handle_client(int client_socket, int* exit_server) {
  * This sets up the connection on the server side using unix sockets.
  * Returns a valid server socket fd on success, else -1 on failure.
  **/
-int setup_server() {
+int setup_server(void) {
     int server_socket;
     size_t len;
     struct sockaddr_un local;
@@ -449,6 +449,8 @@ int setup_server() {
 // You will need to extend this to handle multiple concurrent clients
 // and remain running until it receives a shut-down command.
 int main(void) {
+    // writing to a closed client socket should be an error, not a fatal signal
+    signal(SIGPIPE, SIG_IGN);
     int server_socket = setup_server();
     if (server_socket < 0) {
         exit(1);

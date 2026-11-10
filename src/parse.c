@@ -6,7 +6,7 @@
  * database operator.
  */
 
-#define _BSD_SOURCE
+
 #include <string.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -894,30 +894,90 @@ DbOperator* parse_math(char* query_command, ClientContext* context, Status* stat
     return db_query;
 }
 
+/**
+ * @brief Function that parses relational_update(<col>,<positions>,<value>)
+ *
+ * @param query_command
+ * @param context
+ * @param status
+ *
+ * @return DbOperator - the update operation to be done
+ */
 DbOperator* parse_update(
     char* query_command,
     ClientContext* context,
     Status* status
 ) {
-    (void)query_command;
-    (void)context;
-    /* (void)status; */
-    status->code = OK;
-    status->msg_type = OK_DONE;
-    return NULL;
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        return NULL;
+    }
+    query_command = trim_parenthesis(query_command);
+    char* col_name = next_token(&query_command, &status->msg_type);
+    char* pos_name = next_token(&query_command, &status->msg_type);
+    if (status->msg_type == INCORRECT_FORMAT || query_command == NULL) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        status->msg = "Wrong # of args for relational_update";
+        return NULL;
+    }
+    Column* column = get_col_from_string(col_name, status);
+    if (status->code != OK) {
+        return NULL;
+    }
+    Result* positions = get_result(context, pos_name, status);
+    if (status->code != OK) {
+        return NULL;
+    }
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = UPDATE;
+    dbo->operator_fields.update_operator.column = column;
+    dbo->operator_fields.update_operator.positions = positions;
+    dbo->operator_fields.update_operator.value = atoi(query_command);
+    return dbo;
 }
 
+/**
+ * @brief Function that parses relational_delete(<table>,<positions>)
+ *
+ * @param query_command
+ * @param context
+ * @param status
+ *
+ * @return DbOperator - the delete operation to be done
+ */
 DbOperator* parse_delete(
     char* query_command,
     ClientContext* context,
     Status* status
 ) {
-    (void)query_command;
-    (void)context;
-    /* (void)status; */
-    status->code = OK;
-    status->msg_type = OK_DONE;
-    return NULL;
+    if (strncmp(query_command, "(", 1) != 0) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        return NULL;
+    }
+    query_command = trim_parenthesis(query_command);
+    char* table_name = next_token(&query_command, &status->msg_type);
+    if (status->msg_type == INCORRECT_FORMAT || query_command == NULL) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FORMAT;
+        status->msg = "Wrong # of args for relational_delete";
+        return NULL;
+    }
+    Table* table = (Table*) process_lookup(table_name, TABLE_LOOKUP, status);
+    if (status->code != OK) {
+        return NULL;
+    }
+    Result* positions = get_result(context, query_command, status);
+    if (status->code != OK) {
+        return NULL;
+    }
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = DELETE;
+    dbo->operator_fields.delete_operator.table = table;
+    dbo->operator_fields.delete_operator.positions = positions;
+    return dbo;
 }
 
 /**

@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "utils.h"
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -164,4 +166,21 @@ void log_info(const char *format, ...) {
 #endif
 }
 
-
+/**
+ * recv_all()
+ *
+ * A single recv() on a stream socket can return fewer bytes than requested,
+ * so keep reading until all `length` bytes have arrived.
+ * Returns length on success, 0 if the server closed, or -1 on error.
+ **/
+ssize_t recv_all(int socket, void* buffer, size_t length) {
+    size_t received = 0;
+    while (received < length) {
+        ssize_t len = recv(socket, (char*) buffer + received, length - received, 0);
+        if (len <= 0) {
+            return len;
+        }
+        received += len;
+    }
+    return received;
+}

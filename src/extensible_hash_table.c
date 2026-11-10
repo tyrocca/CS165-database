@@ -15,7 +15,7 @@
  *
  * @return result
  */
-HashResults* create_hash_result() {
+HashResults* create_hash_result(void) {
     HashResults* hres = malloc(sizeof(HashResults));
     hres->num_found = 0;
     hres->hr_capacity = MAX_BUCKET_SIZE;
@@ -57,10 +57,52 @@ void add_to_hb_results(HashResults* hres, size_t result) {
  *
  * @return ExtHashBucket* - pointer to ExtHashBucket
  */
-ExtHashBucket* create_hash_bucket() {
+ExtHashBucket* create_hash_bucket(void) {
     ExtHashBucket* hb = malloc(sizeof(ExtHashBucket));
     hb->hb_size = hb->local_depth = 0;
+    hb->hb_capacity = MAX_BUCKET_SIZE;
+    hb->hb_keys = malloc(hb->hb_capacity * sizeof(int));
+    hb->hb_values = malloc(hb->hb_capacity * sizeof(size_t));
     return hb;
+}
+
+/**
+ * @brief Function to free a hash bucket and its arrays
+ *
+ * @param hb
+ */
+void free_hash_bucket(ExtHashBucket* hb) {
+    free(hb->hb_keys);
+    free(hb->hb_values);
+    free(hb);
+}
+
+/**
+ * @brief Function that returns whether every entry in a bucket has the same
+ *  key - such a bucket cannot be split, it has to grow
+ *
+ * @param hb
+ *
+ * @return bool
+ */
+bool is_single_key_bucket(ExtHashBucket* hb) {
+    for (size_t i = 1; i < hb->hb_size; i++) {
+        if (hb->hb_keys[i] != hb->hb_keys[0]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Function that doubles the capacity of a bucket
+ *
+ * @param hb
+ */
+void grow_hash_bucket(ExtHashBucket* hb) {
+    hb->hb_capacity *= 2;
+    hb->hb_keys = realloc(hb->hb_keys, hb->hb_capacity * sizeof(int));
+    hb->hb_values = realloc(hb->hb_values, hb->hb_capacity * sizeof(size_t));
 }
 
 /**
@@ -71,7 +113,7 @@ ExtHashBucket* create_hash_bucket() {
  * @return bool if the values are equal
  */
 bool is_full_bucket(ExtHashBucket* hb) {
-    return hb->hb_size == MAX_BUCKET_SIZE;
+    return hb->hb_size == hb->hb_capacity;
 }
 
 /**
@@ -115,7 +157,7 @@ HashResults* hb_get(ExtHashBucket* hb, int key) {
  *
  * @return New ExtHashTable pointer
  */
-ExtHashTable* create_ext_hash_table() {
+ExtHashTable* create_ext_hash_table(void) {
     ExtHashTable* ext_ht = malloc(sizeof(ExtHashTable));
     ext_ht->max_exbs = NUM_BUCKET_INIT;
     ext_ht->global_depth = 0;
@@ -146,7 +188,7 @@ void free_ext_hash_table(ExtHashTable* ext_ht) {
             }
         }
         // then free the bucket
-        free(bucket);
+        free_hash_bucket(bucket);
         ext_ht->hash_buckets[ext_ht->num_exb] = NULL;
     }
     free(ext_ht->hash_buckets);
@@ -202,74 +244,69 @@ ExtHashBucket* get_ext_hash_bucket(ExtHashTable* ext_ht, int key) {
  * @param key
  * @param value
  */
-size_t recurse_limit = 0;
 void ext_hash_table_put(ExtHashTable* ext_ht, int key, size_t value) {
-    unsigned int hash_idx = get_hash_bucket_idx(ext_ht, key);
-    ExtHashBucket* ext_hb = ext_ht->hash_buckets[hash_idx];
+    ExtHashBucket* ext_hb = get_ext_hash_bucket(ext_ht, key);
 
-    // if we have a local bucket and it equals the local depth, increase
-    // the size of the table
+    // if a full bucket only holds this key, splitting will never separate
+    // the entries, so grow the bucket instead
+    if (is_full_bucket(ext_hb) && ext_hb->hb_keys[0] == key &&
+            is_single_key_bucket(ext_hb)) {
+        grow_hash_bucket(ext_hb);
+    }
+
     if (is_full_bucket(ext_hb) == false) {
         hb_put(ext_hb, key, value);
-        recurse_limit = 0;
         return;
-    } else if (ext_hb->local_depth == ext_ht->global_depth) {
-        // if the table is full and the local depth equals the global
-        // depth, increase the size and try to add
-        ext_ht->global_depth++;
-        // increase the array for buckets if necessary
-        if (ext_ht->num_exb == ext_ht->max_exbs) {
+    }
+
+    // the bucket is full: if it is already as deep as the directory, double
+    // the directory (the new upper half mirrors the lower half)
+    if (ext_hb->local_depth == ext_ht->global_depth) {
+        if (ext_ht->num_exb * 2 > ext_ht->max_exbs) {
             ext_ht->max_exbs *= 2;
-            // increase the the array for buckets
             ext_ht->hash_buckets = realloc(
                     ext_ht->hash_buckets,
                     ext_ht->max_exbs * sizeof(ExtHashBucket*));
         }
-        // copy over the buckets so they point correctly
         memcpy(&ext_ht->hash_buckets[ext_ht->num_exb],
                &ext_ht->hash_buckets[0],
                ext_ht->num_exb * sizeof(ExtHashBucket*));
-        // now double the size
         ext_ht->num_exb *= 2;
+        ext_ht->global_depth++;
     }
 
-    // we have now resized our shit
-    if (ext_hb->local_depth < ext_ht->global_depth) {
-        // make a new bucket
-        ExtHashBucket* new_bucket = create_hash_bucket();
-        // number of items to add
-        size_t num_items = ext_hb->hb_size;
-        // reset the bucket size for the current bucket
-        ext_hb->hb_size = 0;
-        // redistribute the values between the two buckets
-        for (size_t i = 0; i < num_items; i++) {
-            int k = ext_hb->hb_keys[i];
-            size_t v = ext_hb->hb_values[i];
-            // re hash the balue
-            unsigned int hash_v = ext_hash_func((unsigned int) k);
-            hash_v = hash_v & ((1 << ext_ht->global_depth) - 1);
-            // place in the correct new bucket
-            if (((hash_v >> ext_hb->local_depth) & 1) == 1) {
-                hb_put(new_bucket, k, v);
-            } else {
-                hb_put(ext_hb, k, v);
-            }
-        }
-        ext_hb->local_depth++;
-        new_bucket->local_depth = ext_hb->local_depth;
-        ext_ht->hash_buckets[hash_idx + (ext_ht->num_exb / 2)] = new_bucket;
-        // after redistributing, call the function again
-        if (recurse_limit++ == 10) {
-            // this means there was a terrible error and we tried to
-            // rebalance the nodes 10 times
-            exit(-1);
-        }
-        ext_hash_table_put(ext_ht, key, value);
-        return;
-    } else {
-        // there was an error
-        exit(-1);
+    // split the bucket on the next hash bit. The new bucket gets the same
+    // capacity so a grown bucket's entries always fit
+    size_t split_bit = ext_hb->local_depth;
+    ExtHashBucket* new_bucket = create_hash_bucket();
+    while (new_bucket->hb_capacity < ext_hb->hb_capacity) {
+        grow_hash_bucket(new_bucket);
     }
+    size_t num_items = ext_hb->hb_size;
+    ext_hb->hb_size = 0;
+    for (size_t i = 0; i < num_items; i++) {
+        int k = ext_hb->hb_keys[i];
+        size_t v = ext_hb->hb_values[i];
+        unsigned int hash_v = ext_hash_func((unsigned int) k);
+        if ((hash_v >> split_bit) & 1) {
+            hb_put(new_bucket, k, v);
+        } else {
+            hb_put(ext_hb, k, v);
+        }
+    }
+    ext_hb->local_depth++;
+    new_bucket->local_depth = ext_hb->local_depth;
+
+    // every directory slot that pointed at the old bucket and has the split
+    // bit set now points at the new bucket
+    for (size_t i = 0; i < ext_ht->num_exb; i++) {
+        if (ext_ht->hash_buckets[i] == ext_hb && ((i >> split_bit) & 1)) {
+            ext_ht->hash_buckets[i] = new_bucket;
+        }
+    }
+
+    // after redistributing, try again (this may split again)
+    ext_hash_table_put(ext_ht, key, value);
 }
 
 /**

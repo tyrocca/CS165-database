@@ -86,39 +86,168 @@ long col_val_as_long(void* data_ptr, DataType data_type, size_t idx) {
 }
 
 /// ***************************************************************************
-/// Delete Functions
+/// Delete / Update Functions
 /// ***************************************************************************
 
-void delete_from_table(Table* table, size_t row_idx) {
-    for (size_t idx = 0; idx < table->col_count; idx++) {
-        Column* col = &table->columns[idx];
-        if (col->index_type == BTREE) {
-            // if we have a btree we need to scan the leaves
-            // and find the index, then we need to shift all down
-            BPTNode* bt_root = ((BPTNode*) col->index);
-            col->index = bt_root;
-            // find leaf
-            // Go to leaf where the value would exist and
-            // remove
-            /* col->index = (void*) btree_remove_value( */
-            /*     bt_root, */
-            /*     values[idx], */
-            /*     row_idx, */
-            /*     shift_values */
-            /* ); */
-        } else if (col->index_type == SORTED && col->clustered == false) {
-        }
-        // if we are deleting the last value then we don't need to do this
-        if (row_idx + 1 < table->table_size) {
-            memmove(
-                (void*) &table->columns[idx].data[row_idx + 1],
-                (void*) &table->columns[idx].data[row_idx],
-                (table->table_size - row_idx - 1) * sizeof(int)
-            );
+/**
+ * @brief Function that marks every row named in a position result
+ *
+ * @param positions - result column of row positions (from a select)
+ * @param table_size - number of rows in the table
+ *
+ * @return bool array (table_size long) - true for each selected row
+ */
+bool* mark_positions(Result* positions, size_t table_size) {
+    bool* marked = calloc(table_size, sizeof(bool));
+    size_t* pos = (size_t*) positions->payload;
+    for (size_t i = 0; i < positions->num_tuples; i++) {
+        if (pos[i] < table_size) {
+            marked[pos[i]] = true;
         }
     }
-    // finally delete from the table
-    table->table_size--;
+    return marked;
+}
+
+typedef struct RowKey {
+    int key;
+    size_t row;
+} RowKey;
+
+/**
+ * @brief qsort comparator - orders by key, ties broken by row (stable)
+ */
+int compare_row_keys(const void* a, const void* b) {
+    const RowKey* left = (const RowKey*) a;
+    const RowKey* right = (const RowKey*) b;
+    if (left->key != right->key) {
+        return left->key < right->key ? -1 : 1;
+    }
+    return left->row < right->row ? -1 : (left->row > right->row);
+}
+
+/**
+ * @brief Function that rebuilds every index of a table from its base data.
+ *  The rows are pulled out, the indexes reset, and then the rows are inserted
+ *  again (in clustered order) so the existing insert path keeps the clustered
+ *  column sorted and the unclustered indexes pointing at the right rows.
+ *  TODO: performance improvement - maintain the indexes in place instead
+ *
+ * @param table - the table to rebuild
+ * @param status
+ */
+void rebuild_table_indexes(Table* table, Status* status) {
+    size_t num_rows = table->table_size;
+    size_t num_cols = table->col_count;
+
+    // copy out the rows (row major so they can be re inserted)
+    int* rows = malloc(num_rows * num_cols * sizeof(int));
+    for (size_t col_idx = 0; col_idx < num_cols; col_idx++) {
+        int* data = table->columns[col_idx].data;
+        for (size_t row = 0; row < num_rows; row++) {
+            rows[row * num_cols + col_idx] = data[row];
+        }
+    }
+
+    // sort the rows on the clustered column so each insert is an append
+    if (table->primary_index != NULL) {
+        int* keys = table->primary_index->data;
+        RowKey* order = malloc(num_rows * sizeof(RowKey));
+        for (size_t row = 0; row < num_rows; row++) {
+            order[row].key = keys[row];
+            order[row].row = row;
+        }
+        qsort(order, num_rows, sizeof(RowKey), compare_row_keys);
+        int* sorted = malloc(num_rows * num_cols * sizeof(int));
+        for (size_t row = 0; row < num_rows; row++) {
+            memcpy(&sorted[row * num_cols], &rows[order[row].row * num_cols],
+                   num_cols * sizeof(int));
+        }
+        free(order);
+        free(rows);
+        rows = sorted;
+    }
+
+    // reset the indexes to empty
+    for (size_t col_idx = 0; col_idx < num_cols; col_idx++) {
+        Column* col = &table->columns[col_idx];
+        if (col->index_type == BTREE) {
+            if (col->index != NULL) {
+                free_tree((BPTNode*) col->index);
+            }
+            col->index = NULL;
+        } else if (col->index_type == SORTED) {
+            free_sorted_index((SortedIndex*) col->index);
+            col->index = col->clustered ?
+                create_clustered_sorted_index(col->data) :
+                create_unclustered_sorted_index(0);
+        }
+    }
+
+    // insert everything again
+    table->table_size = 0;
+    for (size_t row = 0; row < num_rows && status->code == OK; row++) {
+        insert_into_table(table, &rows[row * num_cols], status);
+    }
+    free(rows);
+}
+
+/**
+ * @brief This function deletes the selected rows from a table
+ *
+ * @param delete_op - the table and positions to delete
+ * @param status
+ */
+void process_delete(DeleteOperator* delete_op, Status* status) {
+    Table* table = delete_op->table;
+    bool* marked = mark_positions(delete_op->positions, table->table_size);
+
+    // compact every column, skipping the deleted rows
+    size_t kept = 0;
+    for (size_t row = 0; row < table->table_size; row++) {
+        if (marked[row]) {
+            continue;
+        }
+        for (size_t col_idx = 0; col_idx < table->col_count; col_idx++) {
+            int* data = table->columns[col_idx].data;
+            data[kept] = data[row];
+        }
+        kept++;
+    }
+    free(marked);
+    bool changed = kept != table->table_size;
+    table->table_size = kept;
+
+    if (changed) {
+        rebuild_table_indexes(table, status);
+    }
+    status->msg_type = OK_DONE;
+}
+
+/**
+ * @brief This function sets a column to a value for the selected rows
+ *
+ * @param update_op - the column, positions, and new value
+ * @param status
+ */
+void process_update(UpdateOperator* update_op, Status* status) {
+    Column* column = update_op->column;
+    Table* table = column->table;
+    bool* marked = mark_positions(update_op->positions, table->table_size);
+
+    bool changed = false;
+    for (size_t row = 0; row < table->table_size; row++) {
+        if (marked[row] && column->data[row] != update_op->value) {
+            column->data[row] = update_op->value;
+            changed = true;
+        }
+    }
+    free(marked);
+
+    // an index on this column (clustered or not) is now out of date
+    if (changed && column->index_type != NONE) {
+        rebuild_table_indexes(table, status);
+    }
+    status->msg_type = OK_DONE;
 }
 
 /// ***************************************************************************
@@ -192,12 +321,20 @@ void insert_into_table(Table* table, int* values, Status* status) {
                 index_col->data[table->table_size - 2] <= insert_val
             ) {
                 shift_values = false;
-            } else if (index_col->data[0] > insert_val) {
-                shift_values = true;
-                row_idx = 0;
             } else {
-                row_idx = btree_find_insert_position((BPTNode*) index_col->index,
-                                                     insert_val);
+                // the base data is sorted on this column, so binary search it
+                // for the first value greater than the one being inserted
+                size_t lo = 0;
+                size_t hi = table->table_size - 1;
+                while (lo < hi) {
+                    size_t mid = lo + (hi - lo) / 2;
+                    if (index_col->data[mid] <= insert_val) {
+                        lo = mid + 1;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                row_idx = lo;
                 shift_values = row_idx + 1 < table->table_size;
             }
         } else {
@@ -1383,8 +1520,8 @@ void process_partition(JoinPartion* partition, Result* l_res, Result* r_res) {
     for (size_t i = 0; i < small_size; i++) {
         ext_hash_table_put(ht, small_keys[i], small_pos[i]);
     }
-    // now query it
-    for (size_t i = 0; i < small_size; i++) {
+    // now probe it with every value from the bigger side
+    for (size_t i = 0; i < big_size; i++) {
         HashResults* hres = ext_hash_func_get(ht, big_keys[i]);
         for (size_t res_idx = 0; res_idx < hres->num_found; res_idx++) {
             add_to_results(big_res, big_pos[i]);
@@ -1710,10 +1847,10 @@ PrintOperator* execute_DbOperator(DbOperator* query, Status* status) {
             process_insert(query->operator_fields.insert_operator, status);
             break;
         case DELETE:
+            process_delete(&query->operator_fields.delete_operator, status);
+            break;
         case UPDATE:
-            // CHANGE ME
-            status->msg = "";
-            status->msg_type = OK_DONE;
+            process_update(&query->operator_fields.update_operator, status);
             break;
         default:
             status->msg = "Undefined Operation";

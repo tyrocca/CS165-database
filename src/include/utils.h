@@ -9,6 +9,14 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <sys/types.h>
+
+/**
+ * reads exactly length bytes from a socket (handles short reads)
+ * returns length on success, 0 if the peer closed, -1 on error
+ **/
+
+ssize_t recv_all(int socket, void* buffer, size_t length);
 
 /**
  * trims newline characters from a string (in place)

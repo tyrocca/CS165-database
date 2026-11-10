@@ -5,15 +5,17 @@
 // calculation for the bucket size - we want it to fit in a page
 /* 4 * n + 8 * n + 16 */
 /* 12n + 16 = 4096 */
-/* #define MAX_BUCKET_SIZE 340 */
 #define MAX_BUCKET_SIZE 340
 #define NUM_BUCKET_INIT 64
 
+// a bucket holds MAX_BUCKET_SIZE entries. It only grows past that when every
+// entry has the same key, as splitting cannot separate duplicates
 typedef struct ExtHashBucket {
     size_t hb_size;
+    size_t hb_capacity;
     size_t local_depth;
-    int hb_keys[MAX_BUCKET_SIZE];
-    size_t hb_values[MAX_BUCKET_SIZE];
+    int* hb_keys;
+    size_t* hb_values;
 } ExtHashBucket;
 
 
@@ -32,7 +34,7 @@ typedef struct HashResults {
 
 
 // creation functions
-ExtHashTable* create_ext_hash_table();
+ExtHashTable* create_ext_hash_table(void);
 void free_ext_hash_table(ExtHashTable* ext_ht);
 
 // setters

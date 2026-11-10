@@ -37,7 +37,7 @@ machine please look into this as a a source of error. */
  * Returns a valid client socket fd on success, else -1 on failure.
  *
  **/
-int connect_client() {
+int connect_client(void) {
     int client_socket;
     size_t len;
     struct sockaddr_un remote;
@@ -116,7 +116,7 @@ int main(void) {
             // a message struct and that struct will then inform us about the
             // following response that will be sent by the client
             do {
-                if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
+                if ((len = recv_all(client_socket, &(recv_message), sizeof(message))) > 0) {
                     // the response object from the server tells use about the
                     // incoming response from the server
                     if ((int) recv_message.length > 0) {
@@ -125,7 +125,7 @@ int main(void) {
                         // then make an payload to recieve the message
                         char payload[num_bytes + 1];
                         // Receive the payload and print it out
-                        if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
+                        if ((len = recv_all(client_socket, payload, num_bytes)) > 0) {
                             payload[num_bytes] = '\0';
                             if (recv_message.status != OK_WAIT_FOR_RESPONSE) {
                                 printf("%s\n", payload);

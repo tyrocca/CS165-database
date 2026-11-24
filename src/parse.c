@@ -592,7 +592,13 @@ void parse_load(char* query_command, Status* status) {
     // See if we can find the column then we can get the table
     char csv_line[DEFAULT_READ_SIZE];
     // TODO: edge case - table columns are not in order...
-    fgets(csv_line, DEFAULT_READ_SIZE, load_file);
+    if (fgets(csv_line, DEFAULT_READ_SIZE, load_file) == NULL) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FILE_FORMAT;
+        status->msg = "Error, loaded file is empty.";
+        fclose(load_file);
+        return;
+    }
     Table* table = (Table*) process_lookup(csv_line, TABLE_LOOKUP, status);
     if (!table) {
         fclose(load_file);

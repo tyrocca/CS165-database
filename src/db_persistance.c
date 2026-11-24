@@ -8,6 +8,11 @@
 #include <assert.h>
 #define MAX_LINE_LEN 2048
 
+// buffer sizes for the generated file names ("./database/" + names + suffix)
+#define TABLE_FNAME_SIZE (MAX_SIZE_NAME * 2 + 24)
+#define COLUMN_FNAME_SIZE (MAX_SIZE_NAME * 3 + 24)
+#define INDEX_FNAME_SIZE (MAX_SIZE_NAME * 3 + 32)
+
 /// ***************************************************************************
 /// Serialization Types
 /// ***************************************************************************
@@ -69,7 +74,8 @@ typedef struct StorageGroup {
  * @return
  */
 int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
-    return sprintf(fileoutname, "./database/%s.%s.bin", db_name, table_name);
+    return snprintf(fileoutname, TABLE_FNAME_SIZE, "./database/%s.%s.bin",
+                    db_name, table_name);
 }
 
 /**
@@ -83,7 +89,8 @@ int make_table_fname(char* db_name, char* table_name, char* fileoutname) {
  * @return
  */
 int make_column_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
-    return sprintf(fileoutname, "./database/%s.%s.%s.bin", db_name, table_name, col_name);
+    return snprintf(fileoutname, COLUMN_FNAME_SIZE, "./database/%s.%s.%s.bin",
+                    db_name, table_name, col_name);
 }
 
 /**
@@ -97,7 +104,8 @@ int make_column_fname(char* db_name, char* table_name, char* col_name, char* fil
  * @return
  */
 int make_index_fname(char* db_name, char* table_name, char* col_name, char* fileoutname) {
-    return sprintf(fileoutname, "./database/%s.%s.%s.index.bin", db_name, table_name, col_name);
+    return snprintf(fileoutname, INDEX_FNAME_SIZE, "./database/%s.%s.%s.index.bin",
+                    db_name, table_name, col_name);
 }
 
 /**
@@ -114,7 +122,10 @@ BPTNode* load_btree(FILE* loadfile) {
 
     // otherwise start loading
     BPTNode* root_node = calloc(1, sizeof(BPTNode));
-    fread(root_node, sizeof(BPTNode), 1, loadfile);
+    if (fread(root_node, sizeof(BPTNode), 1, loadfile) != 1) {
+        free(root_node);
+        return NULL;
+    }
 
     // allocate space to hold the nodes
     BPTNode** all_nodes = malloc(sizeof(BPTNode*) * 2);
@@ -139,7 +150,21 @@ BPTNode* load_btree(FILE* loadfile) {
             // set the parent to point to the children
             for (size_t i = 0; i < to_add; i++) {
                 BPTNode* read_node = calloc(1, sizeof(BPTNode));
-                fread((void*) read_node, sizeof(BPTNode), 1, loadfile);
+                if (fread((void*) read_node, sizeof(BPTNode), 1, loadfile) != 1) {
+                    // the file is truncated. Every node read so far is either
+                    // queued in all_nodes or one of this node's first i
+                    // children (nodes not yet expanded hold stale pointers,
+                    // so they can't be walked with free_tree)
+                    free(read_node);
+                    for (size_t j = 0; j < i; j++) {
+                        free(current_node->bpt_meta.bpt_ptrs.children[j]);
+                    }
+                    for (size_t j = 0; j < num_nodes; j++) {
+                        free(all_nodes[j]);
+                    }
+                    free(all_nodes);
+                    return NULL;
+                }
                 current_node->bpt_meta.bpt_ptrs.children[i] = read_node;
             }
             // add to the queue
@@ -175,7 +200,7 @@ BPTNode* load_btree(FILE* loadfile) {
  * @param filename
  * @param column
  */
-void load_index(char* filename, Column* column) {
+void load_index(char* filename, Column* column, Status* status) {
     // if we have a sorted clusteted column we don't have to do anything as
     // the data is already organized
     if (column->index_type == SORTED && column->clustered) {
@@ -183,25 +208,36 @@ void load_index(char* filename, Column* column) {
         sorted_index->num_items = *column->size_ptr;
         column->index = (void*) sorted_index;
         return;
-    } else if (column->index_type == SORTED) {
+    }
+
+    FILE* index_file = fopen(filename, "rb");
+    if (column->index_type == SORTED) {
         SortedIndex* sorted_index = create_unclustered_sorted_index(
                 column->table->table_length
         );
         sorted_index->num_items = *column->size_ptr;
-        // Read in the
-        FILE* index_file = fopen(filename, "rb");
-        fread(sorted_index->keys, sizeof(int),
-              sorted_index->num_items, index_file);
-        fread(sorted_index->col_positions, sizeof(size_t),
-              sorted_index->num_items, index_file);
-        fclose(index_file);
         column->index = (void*) sorted_index;
-        return;
+        // Read in the keys, then the positions
+        size_t n = sorted_index->num_items;
+        if (index_file == NULL ||
+            fread(sorted_index->keys, sizeof(int), n, index_file) != n ||
+            fread(sorted_index->col_positions, sizeof(size_t), n, index_file) != n
+        ) {
+            status->code = ERROR;
+            status->msg_type = INCORRECT_FILE_FORMAT;
+            status->msg = "Could not read sorted index file";
+        }
     } else {
-        FILE* index_file = fopen(filename, "rb");
+        // an empty b tree is never dumped, so there may be no file
         column->index = load_btree(index_file);
+        if (column->index == NULL && *column->size_ptr > 0) {
+            status->code = ERROR;
+            status->msg_type = INCORRECT_FILE_FORMAT;
+            status->msg = "Could not read btree index file";
+        }
+    }
+    if (index_file != NULL) {
         fclose(index_file);
-        return;
     }
 }
 
@@ -227,18 +263,37 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
 
     // load the column file
     Column* columns = tbl_ptr->columns;
-    char table_fname[MAX_SIZE_NAME * 2 + 8];
+    char table_fname[TABLE_FNAME_SIZE];
     make_table_fname(current_db->name, tbl_ptr->name, table_fname);
     FILE* table_file = fopen(table_fname, "rb");
     if (table_file == NULL || columns == NULL) {
         status->code = ERROR;
+        status->msg_type = FILE_NOT_FOUND;
+        status->msg = "Could not open table file";
+        if (table_file != NULL) {
+            fclose(table_file);
+        }
         return;
     }
-    fread(columns, sizeof(Column), tbl_ptr->col_count, table_file);
+    if (fread(columns, sizeof(Column), tbl_ptr->col_count, table_file) !=
+            tbl_ptr->col_count) {
+        status->code = ERROR;
+        status->msg_type = INCORRECT_FILE_FORMAT;
+        status->msg = "Could not read table file";
+        fclose(table_file);
+        return;
+    }
+
+    // the stored structs hold pointers from the previous run, so clear them
+    // before anything can fail part way through
+    for (size_t i = 0; i < tbl_ptr->col_count; i++) {
+        tbl_ptr->columns[i].data = NULL;
+        tbl_ptr->columns[i].index = NULL;
+    }
 
     // load in the columns
     for (size_t i = 0; status->code != ERROR && i < tbl_ptr->col_count; i++) {
-        char col_fname[MAX_SIZE_NAME * 3 + 8];
+        char col_fname[COLUMN_FNAME_SIZE];
         Column* col = tbl_ptr->columns + i;
         // load if data was allocated
         col->data = malloc(tbl_ptr->table_length * sizeof(int));
@@ -247,6 +302,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         if (col->data == NULL) {
             status->code = ERROR;
             status->msg_type = MEM_ALLOC_FAILED;
+            status->msg = "Could not allocate column data";
             fclose(table_file);
             return;
         }
@@ -255,15 +311,25 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
         FILE* col_file = fopen(col_fname, "rb");
         if (col_file == NULL) {
             status->code = ERROR;
-            status->msg_type = MEM_ALLOC_FAILED;
+            status->msg_type = FILE_NOT_FOUND;
+            status->msg = "Could not open column file";
+            fclose(table_file);
             return;
         }
         // load in all the data
-        fread(col->data, sizeof(int), tbl_ptr->table_size, col_file);
+        size_t rows_read = fread(col->data, sizeof(int), tbl_ptr->table_size, col_file);
+        fclose(col_file);
+        if (rows_read != tbl_ptr->table_size) {
+            status->code = ERROR;
+            status->msg_type = INCORRECT_FILE_FORMAT;
+            status->msg = "Could not read column file";
+            fclose(table_file);
+            return;
+        }
 
         // This is the
         if (col->index_type != NONE) {
-            char index_fname[MAX_SIZE_NAME * 4 + 8];
+            char index_fname[INDEX_FNAME_SIZE];
             make_index_fname(
                 current_db->name,
                 tbl_ptr->name,
@@ -274,7 +340,7 @@ void load_table(StorageGroup* sg_ptr, Status* status) {
                 tbl_ptr->primary_index = col;
                 tbl_ptr->primary_col_pos = i;
             }
-            load_index(index_fname, col);
+            load_index(index_fname, col, status);
         }
     }
     /* free(scolumns); */
@@ -294,7 +360,7 @@ Status db_startup(void) {
     if (db_fp == NULL) {
         startup_status.code = ERROR;
         startup_status.msg_type = FILE_NOT_FOUND;
-        fclose(db_fp);
+        startup_status.msg = "Could not open database.bin";
         return startup_status;
     }
 
@@ -310,9 +376,18 @@ Status db_startup(void) {
         if (sgrouping == NULL) {
             startup_status.code = ERROR;
             startup_status.msg_type = MEM_ALLOC_FAILED;
+            startup_status.msg = "Could not allocate table list";
+            fclose(db_fp);
             return startup_status;
         }
-        fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp);
+        if (fread(sgrouping, sizeof(StorageGroup), stored_db.count_1, db_fp) !=
+                stored_db.count_1) {
+            startup_status.code = ERROR;
+            startup_status.msg_type = INCORRECT_FILE_FORMAT;
+            startup_status.msg = "Could not read database.bin";
+            free(sgrouping);
+            break;
+        }
         // process the tables
         while (startup_status.code != ERROR &&
                current_db->tables_size != stored_db.count_1
@@ -424,14 +499,14 @@ Status dump_db_table(const char* fname, Db* db, Table* table) {
         return status;
     }
     for (size_t i = 0; status.code != ERROR && i < table->col_count; i++) {
-        char col_fname[MAX_SIZE_NAME * 3 + 8];
+        char col_fname[COLUMN_FNAME_SIZE];
         Column* col = table->columns + i;
         fwrite(col, sizeof(Column), 1, table_file);
         // dump the column
         make_column_fname(db->name, table->name, col->name, col_fname);
         dump_column(col_fname, col, table->table_size, &status);
         if (col->index_type != NONE && col->index != NULL) {
-            char index_fname[MAX_SIZE_NAME * 4 + 8];
+            char index_fname[INDEX_FNAME_SIZE];
             make_index_fname(db->name, table->name, col->name, index_fname);
             dump_index(index_fname, col);
         }
@@ -512,7 +587,7 @@ Status sync_db(Db* db) {
     }
     // store the database
     for (size_t i = 0; status.code != ERROR && i < db->tables_size; i++) {
-        char table_fname[MAX_SIZE_NAME * 2 + 8];
+        char table_fname[TABLE_FNAME_SIZE];
         Table* table = db->tables + i;
         make_table_fname(db->name, table->name, table_fname);
         status = dump_db_table(table_fname, db, table);

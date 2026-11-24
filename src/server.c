@@ -465,7 +465,18 @@ int main(void) {
     // check if there is a database to load
     if (db_exists()) {
         log_info("-- Database found... loading\n", client_socket);
-        db_startup();
+        Status startup_status = db_startup();
+        // serving a partly loaded database would return wrong answers, so
+        // refuse to start and leave the files untouched for inspection.
+        // log_err is compiled out by default, so print this directly
+        if (startup_status.code == ERROR) {
+            fprintf(stderr, "server: could not load ./database (%s). Move it "
+                    "aside to start with an empty database.\n",
+                    startup_status.msg ? startup_status.msg : "unreadable file");
+            close(server_socket);
+            unlink(SOCK_PATH);
+            exit(1);
+        }
     }
 
     int exit_server = 0;

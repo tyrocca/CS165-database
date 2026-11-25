@@ -531,7 +531,6 @@ Status dump_databases(void) {
     if (db_fp == NULL) {
         status.code = ERROR;
         status.msg_type = FILE_NOT_FOUND;
-        fclose(db_fp);
         return status;
     }
 
@@ -547,6 +546,7 @@ Status dump_databases(void) {
         if (sgrouping == NULL) {
             status.code = ERROR;
             status.msg_type = MEM_ALLOC_FAILED;
+            fclose(db_fp);
             return status;
         }
         for (size_t i = 0; i < db_ptr->tables_size; i++) {
